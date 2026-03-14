@@ -1,0 +1,160 @@
+---
+title: "Digital Electronics and Logic"
+description: "Understand what happens inside a microcontroller at the hardware level. Nine lessons covering binary and hex, logic gates, combinational circuits, flip-flops, counters, memory, buses, ADC/DAC, and MCU architecture. Build real circuits on a breadboard with 74HC series ICs."
+pubDate: 2026-03-01
+tags: ["digital-electronics", "logic-gates", "binary", "boolean-algebra", "flip-flops", "counters", "memory", "adc", "dac", "microcontroller-architecture"]
+excerpt: "See what your code actually does at the hardware level. This course walks through the digital building blocks inside every microcontroller, from binary arithmetic and logic gates to memory, buses, and ADC/DAC. Each lesson connects directly to concepts you will use in embedded programming."
+heroImage: "https://cdn.siliconwit.com/education/digital-electronics/index.png"
+---
+
+import Copyright from '../../../../components/Copyright.astro';
+import TawkWidget from '../../../../components/TawkWidget.astro';
+import { Card, CardGrid, Badge, Steps } from '@astrojs/starlight/components';
+
+This course shows you what happens inside the microcontroller when your code runs. You will build real circuits on a breadboard, watch logic signals with LEDs, and connect every concept back to the embedded programming you will do in other courses. Whether you are about to start your first embedded course or you have already written firmware and want to understand the hardware beneath it, this is your reference. #DigitalElectronics #LogicDesign #EmbeddedFoundations
+
+## This Is Not a Prerequisite
+
+<Card title="Jump straight into embedded programming" icon="approve-check">
+You do **not** need to complete this course before starting any of our embedded programming courses. Every embedded course (ATmega328P, STM32, ESP32, RPi Pico, RTOS) is designed to be self-contained. This course exists as helpful background that will make everything else easier to understand and as a reference you can come back to when you want deeper insight into what your code is doing at the hardware level.
+</Card>
+
+:::tip[When to use this course]
+**Before** an embedded course: skim the lessons to build intuition. **During** an embedded course: come back to specific lessons when you encounter timers, SPI, memory maps, or ADC. **After** an embedded course: read through for a deeper understanding of peripherals you have already used.
+:::
+
+## What You Will Learn
+
+<CardGrid>
+  <Card title="Binary and Number Systems" icon="open-book">
+    How computers represent numbers. Binary, hexadecimal, BCD, and two's complement signed integers. Read register values in hex and understand what each bit controls.
+  </Card>
+
+  <Card title="Logic Gates and Boolean Algebra" icon="open-book">
+    AND, OR, NOT, NAND, NOR, XOR. Truth tables, De Morgan's theorems, and simplification. See how bitwise C operators map directly to physical gates.
+  </Card>
+
+  <Card title="Combinational and Sequential Circuits" icon="open-book">
+    Multiplexers, decoders, adders, flip-flops, shift registers, and counters. These are the building blocks of every peripheral inside your MCU.
+  </Card>
+
+  <Card title="Memory, Buses, ADC/DAC, and MCU Architecture" icon="open-book">
+    How SRAM, Flash, and EEPROM store data. How SPI, I2C, and UART work at the wire level. How ADCs convert analog voltages to digital values. How the CPU fetches and executes your instructions.
+  </Card>
+</CardGrid>
+
+## Lessons
+
+<CardGrid>
+  <Card title="Lesson 1: Binary, Hex, and Number Systems" icon="star">
+    [Binary, Hex, and Number Systems](./binary-hex-number-systems). Count in binary and hexadecimal, convert between bases, understand BCD and two's complement. Learn to read MCU register values in hex and know what each bit means.
+    **Practical:** Convert register values, decode GPIO configuration bits.
+  </Card>
+
+  <Card title="Lesson 2: Logic Gates and Boolean Algebra" icon="document">
+    [Logic Gates and Boolean Algebra](./logic-gates-boolean-algebra). Build AND, OR, NOT, NAND, NOR, XOR circuits with 74HC series ICs. Verify truth tables with LEDs. Apply De Morgan's theorems and simplify Boolean expressions.
+    **Practical:** Wire logic gates on a breadboard, verify outputs with LEDs.
+  </Card>
+
+  <Card title="Lesson 3: Combinational Logic Circuits" icon="document">
+    [Combinational Logic: Multiplexers, Decoders, Adders](./combinational-logic-circuits). Build multiplexers, decoders, encoders, and adders from gates. Understand how these circuits form the foundation of address decoding and arithmetic in a CPU.
+    **Practical:** Build a 4-to-1 mux and a 2-bit adder on a breadboard.
+  </Card>
+
+  <Card title="Lesson 4: Flip-Flops, Latches, and Registers" icon="document">
+    [Flip-Flops, Latches, and Registers](./flip-flops-latches-registers). Move from combinational to sequential logic. SR latches, D flip-flops, JK flip-flops, shift registers, and parallel load registers. Drive 8 LEDs from 3 MCU pins using a 74HC595.
+    **Practical:** Build a shift register LED driver with the 74HC595.
+  </Card>
+
+  <Card title="Lesson 5: Counters, Timers, and Frequency Dividers" icon="document">
+    [Counters, Timers, and Frequency Dividers](./counters-timers-dividers). Build ripple and synchronous counters, up/down counters, and frequency dividers. See how the timer/counter peripherals inside your MCU work at the gate level.
+    **Practical:** Build a 4-bit binary counter with LEDs, divide a clock signal.
+  </Card>
+
+  <Card title="Lesson 6: Memory: SRAM, Flash, EEPROM" icon="document">
+    [Memory: SRAM, Flash, EEPROM](./memory-types-organization). Understand how SRAM cells store bits, how Flash uses floating gates, and how EEPROM provides byte-level erase. Explore address buses, data buses, and memory maps.
+    **Practical:** Read an MCU memory map and locate peripheral registers.
+  </Card>
+
+  <Card title="Lesson 7: Bus Architecture and Communication Interfaces" icon="document">
+    [Bus Architecture and Communication Interfaces](./bus-architecture-interfaces). See SPI, I2C, and UART at the signal level. Understand clock polarity, data framing, acknowledge bits, and baud rates. Parallel vs serial bus tradeoffs.
+    **Practical:** Trace SPI/I2C/UART signals with a logic analyzer or oscilloscope.
+  </Card>
+
+  <Card title="Lesson 8: ADC and DAC Fundamentals" icon="document">
+    [ADC and DAC Fundamentals](./adc-dac-fundamentals). Learn successive approximation ADC, resolution, quantization error, and the Nyquist sampling theorem. Explore R-2R ladder DACs and PWM as a pseudo-DAC.
+    **Practical:** Calculate ADC resolution and quantization error for real sensors.
+  </Card>
+
+  <Card title="Lesson 9: Introduction to Microcontroller Architecture" icon="document">
+    [Introduction to Microcontroller Architecture](./microcontroller-architecture-overview). Von Neumann vs Harvard, the ALU, registers, stack, program counter, and interrupt vector table. Trace what happens when you write `int x = 5;` down to the assembly level.
+    **Practical:** Map C code to assembly instructions, locate GPIO registers in memory.
+  </Card>
+</CardGrid>
+
+## Parts Kit
+
+All the components you need for hands-on exercises across the course:
+
+| Part | Quantity | First Used | Approximate Cost |
+|------|----------|------------|-----------------|
+| Breadboard (full-size or half-size) | 1 | Lesson 2 | 2-3 USD |
+| Jumper wire kit | 1 set | Lesson 2 | 2-3 USD |
+| 74HC00 (quad NAND) | 1 | Lesson 2 | 0.50 USD |
+| 74HC04 (hex inverter / NOT) | 1 | Lesson 2 | 0.50 USD |
+| 74HC08 (quad AND) | 1 | Lesson 2 | 0.50 USD |
+| 74HC32 (quad OR) | 1 | Lesson 2 | 0.50 USD |
+| 74HC86 (quad XOR) | 1 | Lesson 3 | 0.50 USD |
+| 74HC595 (8-bit shift register) | 2 | Lesson 4 | 1 USD |
+| 74HC164 (8-bit shift register, serial-in parallel-out) | 1 | Lesson 4 | 0.50 USD |
+| 74HC393 (dual 4-bit binary counter) | 1 | Lesson 5 | 0.50 USD |
+| LEDs (red or green, 5mm) | 10 | Lesson 2 | 0.50 USD |
+| Resistors (220 ohm for LEDs) | 10 | Lesson 2 | 0.25 USD |
+| Resistors (10K ohm for pull-ups/pull-downs) | 10 | Lesson 2 | 0.25 USD |
+| Push buttons (tactile, through-hole) | 4 | Lesson 2 | 0.50 USD |
+| DIP switches (4-position or 8-position) | 1 | Lesson 3 | 0.50 USD |
+| 5V power supply (USB breakout or bench supply) | 1 | Lesson 2 | 1-2 USD |
+
+**Total estimated cost: 10 to 20 USD** depending on supplier and shipping.
+
+:::note[Already have parts from other courses?]
+If you completed any of our embedded programming courses, you likely already have a breadboard, jumper wires, LEDs, and resistors. The only new parts are the 74HC series logic ICs and DIP switches, which together cost a few dollars.
+:::
+
+## Where This Connects
+
+Every lesson in this course maps directly to concepts you will encounter in embedded programming:
+
+| Digital Electronics Concept | Where You Will See It |
+|----------------------------|----------------------|
+| Binary and hex notation | Every register configuration in every MCU |
+| Logic gates and bitwise ops | GPIO pin masking, flag checking, peripheral configuration |
+| Multiplexers and decoders | Address decoding, peripheral selection on buses |
+| Flip-flops and shift registers | SPI communication, LED drivers, display interfaces |
+| Counters and timers | Timer/counter peripherals (PWM, input capture, output compare) |
+| Memory types and organization | Flash programming, SRAM variables, EEPROM storage |
+| SPI, I2C, UART at wire level | Every communication peripheral in your MCU |
+| ADC and DAC | Sensor reading, analog output, signal processing |
+| CPU architecture | Understanding compiler output, debugging, optimization |
+
+<CardGrid>
+  <Card title="Embedded Programming: ATmega328P" icon="right-arrow">
+    [Start here](/education/embedded-programming-atmega328p/) for your first embedded programming course. 8-bit AVR, direct register access, and foundational projects.
+  </Card>
+
+  <Card title="Embedded Programming: STM32" icon="right-arrow">
+    [Continue here](/education/embedded-programming-stm32/) for 32-bit ARM Cortex-M programming with HAL and register-level access.
+  </Card>
+
+  <Card title="Embedded Programming: ESP32" icon="right-arrow">
+    [WiFi and Bluetooth projects](/education/embedded-programming-esp32/) with the ESP32 using the ESP-IDF framework.
+  </Card>
+
+  <Card title="Embedded Programming: RPi Pico" icon="right-arrow">
+    [RP2040 dual-core projects](/education/embedded-programming-rpi-pico/) with PIO state machines and the Pico SDK.
+  </Card>
+</CardGrid>
+
+<Copyright />
+
+<TawkWidget />

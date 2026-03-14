@@ -1,0 +1,575 @@
+---
+title: "Binary, Hex, and Number Systems"
+description: "Learn binary counting, hexadecimal notation, BCD, and two's complement signed integers. Convert between number bases and read MCU register values in hex. Understand what each bit means when you write to a GPIO register."
+contributors: "sam-macharia"
+pubDate: 2026-03-01
+tags: ["binary", "hexadecimal", "number-systems", "bcd", "twos-complement", "digital-electronics"]
+excerpt: "Master the number systems that digital hardware speaks. Binary, hexadecimal, BCD, and two's complement are not abstract math; they are the language you use every time you configure a microcontroller register."
+heroImage: "https://cdn.siliconwit.com/education/digital-electronics/binary-hex-number-systems.png"
+---
+
+import TawkWidget from '../../../../components/TawkWidget.astro';
+import UniversalContentContributors from '../../../../components/UniversalContentContributors.astro';
+import InArticleAd from '../../../../components/InArticleAd.astro';
+import Copyright from '../../../../components/Copyright.astro';
+import BionicText from '../../../../components/BionicText.astro';
+import TailwindWrapper from '../../../../components/TailwindWrapper.jsx';
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+import { Card, CardGrid, Badge, Steps, LinkButton, FileTree } from '@astrojs/starlight/components';
+
+<UniversalContentContributors 
+  contributors={frontmatter.contributors}
+/>
+
+
+
+import DigitalElectronicsComments from '../../../../components/digital-electronics/DigitalElectronicsComments.astro';
+
+Every microcontroller register, every memory address, and every data byte is a pattern of ones and zeros. When you write `PORTB = 0x3F;` in C, you are setting six specific bits high and two bits low. This lesson teaches you to think in binary and hexadecimal so that register configurations stop being mysterious hex values and start being clear, intentional bit patterns. #Binary #Hexadecimal #NumberSystems
+
+## Why Number Systems Matter for Embedded Programming
+
+When you configure a microcontroller, you are writing specific bit patterns to hardware registers. Consider this line of STM32 code:
+
+```c
+GPIOA->CRL = 0x44444443;
+```
+
+This single hexadecimal value configures eight GPIO pins. Each hex digit (4 bits) controls one pin's mode and speed. Without understanding hex and binary, this line is opaque. With that understanding, you can read it like a sentence: "Pin 0 is push-pull output at 50 MHz, pins 1 through 7 are floating inputs."
+
+Every embedded programmer needs three number systems:
+
+| Base | Name | Digits Used | Prefix in C | Common Use |
+|------|------|-------------|-------------|------------|
+| 2 | Binary | 0, 1 | `0b` | Individual bit manipulation |
+| 10 | Decimal | 0-9 | (none) | Human-readable values |
+| 16 | Hexadecimal | 0-9, A-F | `0x` | Register values, addresses |
+
+## Binary: The Language of Hardware
+
+<InArticleAd />
+
+
+### Counting in Binary
+
+A single binary digit (bit) can be 0 or 1. With more bits, you can represent larger numbers by assigning each position a power of two:
+
+| Bit Position | 7 | 6 | 5 | 4 | 3 | 2 | 1 | 0 |
+|-------------|---|---|---|---|---|---|---|---|
+| **Weight** | $2^7 = 128$ | $2^6 = 64$ | $2^5 = 32$ | $2^4 = 16$ | $2^3 = 8$ | $2^2 = 4$ | $2^1 = 2$ | $2^0 = 1$ |
+
+To find the decimal value of a binary number, multiply each bit by its weight and add the results.
+
+**Example:** `0b10110011`
+
+$$
+1 \times 128 + 0 \times 64 + 1 \times 32 + 1 \times 16 + 0 \times 8 + 0 \times 4 + 1 \times 2 + 1 \times 1 = 179
+$$
+
+### Counting from 0 to 15 in Binary
+
+| Decimal | Binary (4-bit) | Decimal | Binary (4-bit) |
+|---------|----------------|---------|----------------|
+| 0 | 0000 | 8 | 1000 |
+| 1 | 0001 | 9 | 1001 |
+| 2 | 0010 | 10 | 1010 |
+| 3 | 0011 | 11 | 1011 |
+| 4 | 0100 | 12 | 1100 |
+| 5 | 0101 | 13 | 1101 |
+| 6 | 0110 | 14 | 1110 |
+| 7 | 0111 | 15 | 1111 |
+
+Notice the pattern: bit 0 toggles every count, bit 1 toggles every 2 counts, bit 2 toggles every 4 counts, and bit 3 toggles every 8 counts. This is exactly how a binary counter circuit works (Lesson 5).
+
+### Powers of Two You Should Memorize
+
+These come up constantly in embedded work:
+
+| Power | Value | Significance |
+|-------|-------|-------------|
+| $2^8$ | 256 | One byte range (0 to 255) |
+| $2^{10}$ | 1,024 | 1 KB (kilobyte) |
+| $2^{12}$ | 4,096 | 12-bit ADC range (0 to 4095) |
+| $2^{16}$ | 65,536 | 16-bit timer range, 64 KB |
+| $2^{20}$ | 1,048,576 | 1 MB |
+| $2^{32}$ | 4,294,967,296 | 32-bit address space (4 GB) |
+
+### Converting Decimal to Binary
+
+<Steps>
+1. **Divide** the decimal number by 2.
+2. **Record** the remainder (0 or 1). This is the next bit, starting from the least significant.
+3. **Repeat** with the quotient until it reaches 0.
+4. **Read** the remainders from bottom to top.
+</Steps>
+
+**Example:** Convert 179 to binary.
+
+| Step | Division | Quotient | Remainder |
+|------|----------|----------|-----------|
+| 1 | 179 / 2 | 89 | 1 (bit 0) |
+| 2 | 89 / 2 | 44 | 1 (bit 1) |
+| 3 | 44 / 2 | 22 | 0 (bit 2) |
+| 4 | 22 / 2 | 11 | 0 (bit 3) |
+| 5 | 11 / 2 | 5 | 1 (bit 4) |
+| 6 | 5 / 2 | 2 | 1 (bit 5) |
+| 7 | 2 / 2 | 1 | 0 (bit 6) |
+| 8 | 1 / 2 | 0 | 1 (bit 7) |
+
+Reading remainders bottom to top: **10110011**. Verify: $128 + 32 + 16 + 2 + 1 = 179$.
+
+## Hexadecimal: Compact Binary
+
+<InArticleAd />
+
+
+### Why Hex?
+
+Binary is precise but verbose. Writing `0b11111111111111111111111111111111` for a 32-bit value is impractical. Hexadecimal solves this by grouping every 4 bits into a single digit:
+
+| Hex Digit | Binary | Decimal |
+|-----------|--------|---------|
+| 0 | 0000 | 0 |
+| 1 | 0001 | 1 |
+| 2 | 0010 | 2 |
+| 3 | 0011 | 3 |
+| 4 | 0100 | 4 |
+| 5 | 0101 | 5 |
+| 6 | 0110 | 6 |
+| 7 | 0111 | 7 |
+| 8 | 1000 | 8 |
+| 9 | 1001 | 9 |
+| A | 1010 | 10 |
+| B | 1011 | 11 |
+| C | 1100 | 12 |
+| D | 1101 | 13 |
+| E | 1110 | 14 |
+| F | 1111 | 15 |
+
+One hex digit = 4 bits. Two hex digits = 8 bits (one byte). Eight hex digits = 32 bits (one word on ARM Cortex-M).
+
+### Hex to Binary (and Back)
+
+Converting between hex and binary is purely mechanical. Replace each hex digit with its 4-bit binary equivalent:
+
+**Example:** `0x3F` to binary
+
+- `3` = `0011`
+- `F` = `1111`
+- Result: `0b00111111`
+
+**Example:** `0b10110011` to hex
+
+- Split into groups of 4 from the right: `1011` `0011`
+- `1011` = B
+- `0011` = 3
+- Result: `0xB3`
+
+### Hex to Decimal
+
+Multiply each hex digit by its positional power of 16:
+
+**Example:** `0x3F`
+
+$$
+3 \times 16^1 + 15 \times 16^0 = 48 + 15 = 63
+$$
+
+**Example:** `0x40021000` (a typical STM32 peripheral base address)
+
+$$
+4 \times 16^7 + 0 \times 16^6 + 0 \times 16^5 + 2 \times 16^4 + 1 \times 16^3 + 0 \times 16^2 + 0 \times 16^1 + 0 \times 16^0
+$$
+
+$$
+= 1,073,741,824 + 131,072 + 4,096 = 1,073,876,992
+$$
+
+In practice, you almost never convert large hex addresses to decimal. You work in hex because the bit grouping is what matters.
+
+### Reading Register Values in Hex
+
+Here is a real example. The STM32F103 GPIO port A configuration register low (GPIOA_CRL) at address `0x40010800` might contain:
+
+```
+GPIOA->CRL = 0x44444443
+```
+
+Break it into nibbles (4-bit groups), one per pin:
+
+| Hex Digit | Binary | Pin | Meaning |
+|-----------|--------|-----|---------|
+| 3 | 0011 | PA0 | Output, push-pull, 50 MHz |
+| 4 | 0100 | PA1 | Floating input |
+| 4 | 0100 | PA2 | Floating input |
+| 4 | 0100 | PA3 | Floating input |
+| 4 | 0100 | PA4 | Floating input |
+| 4 | 0100 | PA5 | Floating input |
+| 4 | 0100 | PA6 | Floating input |
+| 4 | 0100 | PA7 | Floating input |
+
+The least significant hex digit corresponds to the lowest pin number. Each nibble encodes both the mode (input/output) and the configuration (push-pull, open-drain, floating, pull-up/pull-down) for one pin.
+
+## Binary Coded Decimal (BCD)
+
+<InArticleAd />
+
+
+### What Is BCD?
+
+BCD encodes each decimal digit separately in 4 bits of binary:
+
+| Decimal | BCD |
+|---------|-----|
+| 0 | 0000 |
+| 1 | 0001 |
+| 2 | 0010 |
+| ... | ... |
+| 9 | 1001 |
+
+The combinations 1010 through 1111 are unused in BCD. This wastes some bit patterns, but it makes decimal display straightforward.
+
+**Example:** Decimal 47 in BCD
+
+- 4 = `0100`
+- 7 = `0111`
+- BCD: `0100 0111`
+
+Compare with pure binary: 47 in binary is `00101111`. The BCD representation is different because each decimal digit is encoded independently.
+
+### Where BCD Appears in Embedded Systems
+
+BCD is common in:
+
+- **Real-Time Clock (RTC) chips**: The DS3231 and the STM32 internal RTC store time in BCD format. When you read the hours register and get `0x23`, that means 23 hours, not decimal 35.
+- **Seven-segment display drivers**: BCD-to-7-segment decoder chips (like the 74LS47) take 4-bit BCD input and directly drive the segments.
+- **Legacy instrumentation**: Many industrial systems use BCD for human-readable numeric displays.
+
+### BCD Conversion in C
+
+```c
+// Convert binary to BCD (for values 0-99)
+uint8_t binary_to_bcd(uint8_t binary) {
+    return ((binary / 10) << 4) | (binary % 10);
+}
+
+// Convert BCD to binary
+uint8_t bcd_to_binary(uint8_t bcd) {
+    return ((bcd >> 4) * 10) + (bcd & 0x0F);
+}
+```
+
+When reading time from an RTC:
+
+```c
+uint8_t hours_bcd = rtc_read(RTC_HOURS_REG);  // Returns 0x23
+uint8_t hours = bcd_to_binary(hours_bcd);       // Returns 23
+```
+
+## Signed Integers: Two's Complement
+
+<InArticleAd />
+
+
+### The Problem with Unsigned Numbers
+
+An 8-bit unsigned integer represents values from 0 to 255. But what about negative numbers? Embedded systems constantly deal with signed values: temperature readings, accelerometer data, motor direction.
+
+### Two's Complement Representation
+
+Two's complement is the standard way digital systems represent signed integers. The most significant bit (MSB) becomes the sign bit:
+
+- **MSB = 0**: the number is positive (or zero)
+- **MSB = 1**: the number is negative
+
+For an 8-bit signed integer:
+
+| Binary | Unsigned Value | Signed Value (Two's Complement) |
+|--------|---------------|-------------------------------|
+| 0111 1111 | 127 | +127 |
+| 0000 0001 | 1 | +1 |
+| 0000 0000 | 0 | 0 |
+| 1111 1111 | 255 | -1 |
+| 1111 1110 | 254 | -2 |
+| 1000 0001 | 129 | -127 |
+| 1000 0000 | 128 | -128 |
+
+An 8-bit signed integer ranges from -128 to +127.
+
+### Finding the Two's Complement
+
+To negate a number in two's complement:
+
+<Steps>
+1. **Invert** all bits (change 0 to 1 and 1 to 0). This is called the one's complement.
+2. **Add 1** to the result.
+</Steps>
+
+**Example:** Find the two's complement representation of -5.
+
+1. Start with +5: `0000 0101`
+2. Invert all bits: `1111 1010`
+3. Add 1: `1111 1011`
+
+Verify: `1111 1011` as a signed byte. The MSB is 1, so it is negative. Invert and add 1 to find the magnitude: invert gives `0000 0100`, add 1 gives `0000 0101` = 5. So the original value is -5.
+
+### Why Two's Complement Works
+
+The beauty of two's complement is that addition works the same for both signed and unsigned numbers. The hardware does not need separate adder circuits:
+
+```
+   0000 0011   (+3)
++  1111 1011   (-5)
+-----------
+   1111 1110   (-2)  ✓
+```
+
+The carry out of the MSB is simply discarded. This is why the ALU inside your microcontroller uses a single adder for both signed and unsigned arithmetic.
+
+### Two's Complement in C
+
+In C, `int8_t` is a signed 8-bit type and `uint8_t` is unsigned. The same bit pattern is interpreted differently:
+
+```c
+uint8_t a = 0xFB;   // Unsigned: 251
+int8_t  b = 0xFB;   // Signed: -5 (same bits, different interpretation)
+
+printf("Unsigned: %u\n", a);  // Prints 251
+printf("Signed: %d\n", b);    // Prints -5
+```
+
+This matters when reading sensor data. An accelerometer might return a signed 16-bit value where `0xFFE0` means -32, not 65,504.
+
+### Sign Extension
+
+When you move a signed value from a smaller type to a larger type, the sign bit must be replicated into the upper bits. This is called sign extension:
+
+```c
+int8_t  small = -5;      // 0xFB = 1111 1011
+int16_t large = small;    // 0xFFFB = 1111 1111 1111 1011
+```
+
+The compiler handles this automatically when you assign between signed types, but you need to be aware of it when doing manual bit manipulation.
+
+## Bit Manipulation: The Bridge to Hardware
+
+<InArticleAd />
+
+
+### Bitwise Operators in C
+
+These operators work on individual bits and map directly to logic gates (Lesson 2):
+
+| Operator | Name | Example | Result | Gate Equivalent |
+|----------|------|---------|--------|-----------------|
+| `&` | AND | `0xF0 & 0x3C` | `0x30` | AND gate |
+| `\|` | OR | `0xF0 \| 0x3C` | `0xFC` | OR gate |
+| `^` | XOR | `0xF0 ^ 0x3C` | `0xCC` | XOR gate |
+| `~` | NOT | `~0xF0` | `0x0F` | NOT gate (inverter) |
+| `<<` | Left shift | `0x01 << 3` | `0x08` | Shift register |
+| `>>` | Right shift | `0x80 >> 3` | `0x10` | Shift register |
+
+### Common Bit Manipulation Patterns
+
+These patterns appear in virtually every embedded program:
+
+**Set a bit** (turn it to 1 without changing other bits):
+
+```c
+PORTB |= (1 << 5);   // Set bit 5 of PORTB
+```
+
+**Clear a bit** (turn it to 0 without changing other bits):
+
+```c
+PORTB &= ~(1 << 5);  // Clear bit 5 of PORTB
+```
+
+**Toggle a bit** (flip its value):
+
+```c
+PORTB ^= (1 << 5);   // Toggle bit 5 of PORTB
+```
+
+**Check a bit** (test if it is set):
+
+```c
+if (PINB & (1 << 5)) {
+    // Bit 5 is high
+}
+```
+
+**Set multiple bits using a mask:**
+
+```c
+// Set bits 0, 1, and 5 of a control register
+CTRL_REG |= (1 << 0) | (1 << 1) | (1 << 5);  // 0x23
+```
+
+**Clear a field and set a new value:**
+
+```c
+// Set timer prescaler bits [2:0] to value 5, without changing other bits
+TCCR0B = (TCCR0B & ~0x07) | 0x05;
+```
+
+This pattern (mask then set) is the most important bit manipulation idiom in embedded programming. You will use it hundreds of times.
+
+## Practical Exercises
+
+<InArticleAd />
+
+
+### Exercise 1: Base Conversion Table
+
+Fill in the missing values:
+
+| Decimal | Binary (8-bit) | Hexadecimal |
+|---------|----------------|-------------|
+| 42 | ? | ? |
+| ? | 1010 1010 | ? |
+| ? | ? | 0x7F |
+| 200 | ? | ? |
+| ? | 0110 0100 | ? |
+
+<details>
+<summary>**Solutions**</summary>
+
+| Decimal | Binary (8-bit) | Hexadecimal |
+|---------|----------------|-------------|
+| 42 | 0010 1010 | 0x2A |
+| 170 | 1010 1010 | 0xAA |
+| 127 | 0111 1111 | 0x7F |
+| 200 | 1100 1000 | 0xC8 |
+| 100 | 0110 0100 | 0x64 |
+
+</details>
+
+### Exercise 2: Two's Complement
+
+Find the 8-bit two's complement representation of these signed values:
+
+1. -1
+2. -128
+3. -42
+4. -100
+
+<details>
+<summary>**Solutions**</summary>
+
+1. -1: invert `0000 0001` to `1111 1110`, add 1 = `1111 1111` = `0xFF`
+2. -128: `1000 0000` = `0x80` (the most negative 8-bit signed value)
+3. -42: invert `0010 1010` to `1101 0101`, add 1 = `1101 0110` = `0xD6`
+4. -100: invert `0110 0100` to `1001 1011`, add 1 = `1001 1100` = `0x9C`
+
+</details>
+
+### Exercise 3: Decode a Register Value
+
+An STM32 GPIO output data register (ODR) reads `0x00000A5F`. Which pins (0 through 15) are high?
+
+<details>
+<summary>**Solution**</summary>
+
+Focus on the lower 16 bits: `0x0A5F`
+
+Convert to binary: `0000 1010 0101 1111`
+
+Pins that are high (bit = 1):
+- Pin 0: 1 (high)
+- Pin 1: 1 (high)
+- Pin 2: 1 (high)
+- Pin 3: 1 (high)
+- Pin 4: 1 (high)
+- Pin 5: 0 (low)
+- Pin 6: 1 (high)
+- Pin 7: 0 (low)
+- Pin 8: 0 (low)
+- Pin 9: 1 (high)
+- Pin 10: 0 (low)
+- Pin 11: 1 (high)
+- Pins 12-15: 0 (low)
+
+Pins high: 0, 1, 2, 3, 4, 6, 9, 11.
+
+</details>
+
+### Exercise 4: Bit Manipulation in C
+
+Write C expressions to:
+
+1. Set bits 4 and 7 of register `REG` without changing other bits.
+2. Clear bits 0 through 3 of register `REG` without changing other bits.
+3. Check if bit 5 of register `STATUS` is set.
+4. Extract bits [7:4] from register `DATA` as a value from 0 to 15.
+
+<details>
+<summary>**Solutions**</summary>
+
+```c
+// 1. Set bits 4 and 7
+REG |= (1 << 4) | (1 << 7);   // or: REG |= 0x90;
+
+// 2. Clear bits 0-3
+REG &= ~0x0F;                  // or: REG &= 0xFFFFFFF0;
+
+// 3. Check bit 5
+if (STATUS & (1 << 5)) { /* bit 5 is set */ }
+
+// 4. Extract bits [7:4]
+uint8_t value = (DATA >> 4) & 0x0F;
+```
+
+</details>
+
+## How This Connects to Embedded Programming
+
+<InArticleAd />
+
+
+Everything in this lesson is directly applicable the moment you touch a microcontroller:
+
+<CardGrid>
+  <Card title="Register Configuration" icon="setting">
+    Every peripheral setup involves writing hex values to registers. Understanding binary lets you decode what `0x44444443` means for GPIO configuration instead of copying values blindly.
+  </Card>
+
+  <Card title="Debugging" icon="magnifier">
+    When you read a register value in a debugger and see `0x0000040D`, you need to instantly know which bits are set. That skill starts with fluent binary/hex conversion.
+  </Card>
+
+  <Card title="Data Interpretation" icon="open-book">
+    Sensor data often arrives as signed integers, BCD values (from RTCs), or multi-byte values that need assembly from individual bytes. Two's complement and bit shifting are essential.
+  </Card>
+
+  <Card title="Efficient Code" icon="rocket">
+    Bit manipulation (set, clear, toggle, check) is how you control hardware efficiently. These operations compile to single instructions on most MCUs.
+  </Card>
+</CardGrid>
+
+:::tip[A habit to build]
+Whenever you see a hex constant in embedded code, practice converting it to binary in your head. Start with the low nibble and work left. Within a few weeks, common patterns like `0xFF`, `0x0F`, `0x80`, `0x55`, and `0xAA` will be instantly recognizable.
+:::
+
+## Summary
+
+<InArticleAd />
+
+
+| Concept | Key Takeaway |
+|---------|-------------|
+| Binary | Every bit is a power of 2. An 8-bit byte holds 0 to 255. |
+| Hexadecimal | Each hex digit is 4 bits. Two hex digits make one byte. |
+| BCD | Each decimal digit stored as 4 bits. Used in RTCs and displays. |
+| Two's complement | Signed numbers where the MSB is the sign bit. Invert and add 1 to negate. |
+| Bit manipulation | AND to clear/test, OR to set, XOR to toggle, shift to position. |
+
+In the next lesson, you will see how these binary values are processed by logic gates, the physical building blocks that perform AND, OR, and NOT operations in hardware.
+
+<DigitalElectronicsComments />
+
+
+
+<InArticleAd />
+<TawkWidget />
+<Copyright />
