@@ -220,6 +220,22 @@ while (1) {
 
 ### Bus Basics
 
+```text
+  Address bus, data bus, and control signals
+
+  ┌───────┐                        ┌────────┐
+  │       │══ Address [31:0] ════→│        │
+  │  CPU  │                        │ Memory │
+  │       │◄═ Data [31:0] ══════►│  or    │
+  │       │                        │Periph. │
+  │       │── RD / WR ──────────→│        │
+  │       │── Chip Select ───────→│        │
+  └───────┘                        └────────┘
+     32 address lines: select location
+     32 data lines:    carry read/write data
+     Control lines:    read, write, enable
+```
+
 The CPU communicates with memory (and peripherals) through buses: groups of parallel signal lines that carry addresses, data, and control signals.
 
 | Bus | Function | Width (STM32F103) |
@@ -263,6 +279,28 @@ When the CPU executes `*((volatile uint32_t *)0x40021000) = 0x00000001;`:
 ### What Is a Memory Map?
 
 A memory map defines how the entire address space is divided among different types of memory and peripherals. Every address in the 32-bit address space (0x00000000 to 0xFFFFFFFF) is assigned to a specific resource.
+
+```text
+  MCU Memory Map (STM32F103)
+
+  0xFFFFFFFF ┌──────────────────────┐
+             │ Cortex-M3 internals  │
+  0xE0000000 ├──────────────────────┤
+             │     (reserved)       │
+  0x40024000 ├──────────────────────┤
+             │ Peripherals (AHB)    │
+  0x40000000 ├──────────────────────┤
+             │     (reserved)       │
+  0x20005000 ├──────────────────────┤
+             │ SRAM  (20 KB)        │
+             │ variables, stack     │
+  0x20000000 ├──────────────────────┤
+             │     (reserved)       │
+  0x08010000 ├──────────────────────┤
+             │ Flash (64 KB)        │
+             │ program code, const  │
+  0x08000000 └──────────────────────┘
+```
 
 ### STM32F103 Memory Map (Simplified)
 

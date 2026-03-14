@@ -162,6 +162,32 @@ I2C uses only two wires for any number of devices:
 
 Both lines use open-drain drivers with external pull-up resistors (typically 4.7K ohm to VCC). Any device can pull the line low, but no device drives it high. The pull-up resistor pulls the line high when no device is pulling it low.
 
+### I2C Bus with Multiple Devices
+
+```text
+  I2C bus topology
+
+       VCC          VCC
+        │            │
+       [4.7K]       [4.7K]
+        │            │
+  ──────┼────────────┼──────── SCL
+  ──────┼────────────┼──────── SDA
+        │            │
+  ┌─────┴──┐   ┌────┴───┐
+  │ Master │   │BME280  │
+  │ (MCU)  │   │ 0x76   │
+  └────────┘   └────────┘
+        │            │
+  ┌─────┴──┐   ┌────┴───┐
+  │SSD1306 │   │DS3231  │
+  │ 0x3C   │   │ 0x68   │
+  └────────┘   └────────┘
+
+  All devices share two wires.
+  Pull-ups required on both lines.
+```
+
 ### I2C Addressing
 
 Each slave device on the bus has a unique 7-bit address (some devices use 10-bit addressing). The master sends the address at the start of each transaction, and only the addressed slave responds.
@@ -228,11 +254,30 @@ UART uses two data lines with no clock:
 
 Since there is no clock, both sides must agree on the data rate (baud rate) beforehand. This is why UART is "asynchronous."
 
+### UART TX/RX Connection
+
+```text
+  UART point-to-point wiring
+
+  Device A              Device B
+  ┌────────┐            ┌────────┐
+  │     TX ├───────────→│ RX     │
+  │        │            │        │
+  │     RX │◄───────────┤ TX     │
+  │        │            │        │
+  │    GND ├────────────┤ GND    │
+  └────────┘            └────────┘
+
+  TX of one device connects to RX
+  of the other (crossover wiring).
+  Shared ground is required.
+```
+
 ### UART Frame Format
 
 A standard UART frame consists of:
 
-```
+```text
 Idle ─────┐   ┌───┬───┬───┬───┬───┬───┬───┬───┬───┬─────── Idle
           └───┤D0 │D1 │D2 │D3 │D4 │D5 │D6 │D7 │(P)├───────
           Start  8 data bits (LSB first)      Parity  Stop

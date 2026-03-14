@@ -400,6 +400,31 @@ void USART1_IRQHandler(void) {
 
 ### The Vector Table
 
+```text
+  Interrupt vector table (start of Flash)
+
+  Address     Content
+  0x08000000  ┌───────────────────────┐
+              │ Initial SP value      │
+  0x08000004  ├───────────────────────┤
+              │ Reset handler addr    │ ← entry
+  0x08000008  ├───────────────────────┤
+              │ NMI handler addr      │
+  0x0800000C  ├───────────────────────┤
+              │ HardFault handler     │
+              ├───────────────────────┤
+              │ ...                   │
+  0x080000B4  ├───────────────────────┤
+              │ TIM2 handler addr     │
+              ├───────────────────────┤
+              │ ...                   │
+  0x080000D8  ├───────────────────────┤
+              │ USART1 handler addr   │
+              └───────────────────────┘
+
+  Each entry is a 32-bit function pointer.
+```
+
 The vector table is stored at the beginning of Flash (address `0x08000000` on STM32):
 
 | Offset | Vector | Description |
@@ -505,6 +530,30 @@ USART1 (priority 1) executes first because it has a lower priority number, meani
 
 <InArticleAd />
 
+
+```text
+  Microcontroller block diagram (high level)
+
+  ┌─────────────────────────────────────┐
+  │           MCU Chip                  │
+  │                                     │
+  │  ┌───────┐   ┌───────┐  ┌───────┐ │
+  │  │  CPU  │   │ Flash │  │ SRAM  │ │
+  │  │(Cortex│◄═►│(code) │  │(data) │ │
+  │  │  -M)  │   │ 64 KB │  │ 20 KB │ │
+  │  └───┬───┘   └───────┘  └───────┘ │
+  │      │   AHB / APB Bus             │
+  │  ════╪═══════════════════════════  │
+  │      │                             │
+  │  ┌───┴──┐ ┌─────┐ ┌────┐ ┌─────┐ │
+  │  │ GPIO │ │Timer│ │ADC │ │SPI/ │ │
+  │  │Ports │ │/PWM │ │    │ │I2C/ │ │
+  │  │      │ │     │ │    │ │UART │ │
+  │  └──┬───┘ └──┬──┘ └─┬──┘ └──┬──┘ │
+  └─────┼────────┼──────┼───────┼────┘
+     Pins     Pins   Analog   Serial
+                      Pins    Pins
+```
 
 This diagram shows how every lesson in the course maps to components inside a microcontroller:
 

@@ -54,6 +54,18 @@ Every embedded programmer needs three number systems:
 
 A single binary digit (bit) can be 0 or 1. With more bits, you can represent larger numbers by assigning each position a power of two:
 
+```text
+  8-bit Register (one byte)
+  ┌─────┬─────┬─────┬─────┬─────┬─────┬─────┬─────┐
+  │ Bit7│ Bit6│ Bit5│ Bit4│ Bit3│ Bit2│ Bit1│ Bit0│
+  │  1  │  0  │  1  │  1  │  0  │  0  │  1  │  1  │
+  └─────┴─────┴─────┴─────┴─────┴─────┴─────┴─────┘
+   128    64    32    16     8     4     2     1
+   (MSB)                                     (LSB)
+
+  Value = 128 + 32 + 16 + 2 + 1 = 179
+```
+
 | Bit Position | 7 | 6 | 5 | 4 | 3 | 2 | 1 | 0 |
 |-------------|---|---|---|---|---|---|---|---|
 | **Weight** | $2^7 = 128$ | $2^6 = 64$ | $2^5 = 32$ | $2^4 = 16$ | $2^3 = 8$ | $2^2 = 4$ | $2^1 = 2$ | $2^0 = 1$ |
@@ -93,6 +105,27 @@ These come up constantly in embedded work:
 | $2^{16}$ | 65,536 | 16-bit timer range, 64 KB |
 | $2^{20}$ | 1,048,576 | 1 MB |
 | $2^{32}$ | 4,294,967,296 | 32-bit address space (4 GB) |
+
+### Byte and Word Storage in Memory
+
+Each memory address holds one byte. Multi-byte values use consecutive addresses:
+
+```text
+  Memory layout: 32-bit value 0x12345678
+
+  Address    Byte (little-endian)
+  ┌────────┬──────────┐
+  │ 0x1000 │   0x78   │  (LSB stored first)
+  ├────────┼──────────┤
+  │ 0x1001 │   0x56   │
+  ├────────┼──────────┤
+  │ 0x1002 │   0x34   │
+  ├────────┼──────────┤
+  │ 0x1003 │   0x12   │  (MSB stored last)
+  └────────┴──────────┘
+
+  ARM Cortex-M uses little-endian byte order.
+```
 
 ### Converting Decimal to Binary
 
@@ -188,6 +221,22 @@ $$
 In practice, you almost never convert large hex addresses to decimal. You work in hex because the bit grouping is what matters.
 
 ### Reading Register Values in Hex
+
+```text
+  MCU Memory Address Map (simplified)
+  ┌────────────────────────┐ 0xFFFFFFFF
+  │   System / Cortex-M    │
+  ├────────────────────────┤ 0xE0000000
+  │       (reserved)       │
+  ├────────────────────────┤ 0x40000000
+  │   Peripheral Regs      │
+  │   (GPIO, UART, SPI...) │
+  ├────────────────────────┤ 0x20000000
+  │   SRAM (variables)     │
+  ├────────────────────────┤ 0x08000000
+  │   Flash (program code) │
+  └────────────────────────┘ 0x00000000
+```
 
 Here is a real example. The STM32F103 GPIO port A configuration register low (GPIOA_CRL) at address `0x40010800` might contain:
 
@@ -340,6 +389,16 @@ printf("Signed: %d\n", b);    // Prints -5
 
 This matters when reading sensor data. An accelerometer might return a signed 16-bit value where `0xFFE0` means -32, not 65,504.
 
+```text
+  Two's complement number line (4-bit)
+
+   -8  -7  -6  -5  -4  -3  -2  -1   0  +1  +2  +3  +4  +5  +6  +7
+  1000 1001 1010 1011 1100 1101 1110 1111 0000 0001 0010 0011 0100 0101 0110 0111
+    │                                  │                                  │
+   Most                              Zero                               Most
+   negative                                                            positive
+```
+
 ### Sign Extension
 
 When you move a signed value from a smaller type to a larger type, the sign bit must be replicated into the upper bits. This is called sign extension:
@@ -411,6 +470,26 @@ CTRL_REG |= (1 << 0) | (1 << 1) | (1 << 5);  // 0x23
 ```c
 // Set timer prescaler bits [2:0] to value 5, without changing other bits
 TCCR0B = (TCCR0B & ~0x07) | 0x05;
+```
+
+```text
+  Bit manipulation: set bit 5 of PORTB
+
+  Before:  PORTB = 0xC1
+  ┌───┬───┬───┬───┬───┬───┬───┬───┐
+  │ 1 │ 1 │ 0 │ 0 │ 0 │ 0 │ 0 │ 1 │
+  └───┴───┴───┴───┴───┴───┴───┴───┘
+    7   6   5   4   3   2   1   0
+
+  Mask:    (1 << 5) = 0x20
+  ┌───┬───┬───┬───┬───┬───┬───┬───┐
+  │ 0 │ 0 │ 1 │ 0 │ 0 │ 0 │ 0 │ 0 │
+  └───┴───┴───┴───┴───┴───┴───┴───┘
+
+  After:   PORTB |= (1 << 5)  =>  0xE1
+  ┌───┬───┬───┬───┬───┬───┬───┬───┐
+  │ 1 │ 1 │ 1 │ 0 │ 0 │ 0 │ 0 │ 1 │
+  └───┴───┴───┴───┴───┴───┴───┴───┘
 ```
 
 This pattern (mask then set) is the most important bit manipulation idiom in embedded programming. You will use it hundreds of times.

@@ -109,6 +109,24 @@ The SR latch has two problems: the forbidden state and the lack of a clock. The 
 
 ### How It Works
 
+```text
+  D Flip-Flop
+
+       D ──┐         ┌── Q
+           │  D  FF  │
+           ├─────────┤
+       CLK─┤>        ├── Q̄
+           └─────────┘
+
+  Timing:
+  CLK:  ──┐  ┌──┐  ┌──┐  ┌──
+          └──┘  └──┘  └──┘
+  D:    ══╡ 1 ╞═╡ 0 ╞═╡ 1 ╞══
+  Q:    ──┐     ┌────┐     ┌──
+          └─────┘    └─────┘
+         captured on each rising edge
+```
+
 On the rising edge of the clock (the moment CLK transitions from 0 to 1), the value on the D input is captured and held at Q. At all other times, Q retains its previous value regardless of what D does.
 
 **Characteristic table:**
@@ -348,6 +366,24 @@ This `shiftOut` function is exactly what the Arduino `shiftOut()` function does 
 
 ### Daisy-Chaining for More Outputs
 
+```text
+  74HC595 driving 8 LEDs from 3 MCU pins
+
+  MCU                    74HC595
+  ┌──────┐             ┌──────────┐
+  │      ├── SER ────→│14  SER   │
+  │      │             │          ├─Q0──[220R]──LED0
+  │      ├── SRCLK ──→│11 SRCLK  ├─Q1──[220R]──LED1
+  │      │             │          ├─Q2──[220R]──LED2
+  │      ├── RCLK ───→│12  RCLK  ├─Q3──[220R]──LED3
+  │      │             │          ├─Q4──[220R]──LED4
+  └──────┘             │   VCC=16 ├─Q5──[220R]──LED5
+   3 pins              │   GND= 8 ├─Q6──[220R]──LED6
+   control             │   OE =13→GND ├─Q7──[220R]──LED7
+   8 outputs           │  CLR=10→VCC │
+                       └──────────┘
+```
+
 Connect Q7' (pin 9) of the first 74HC595 to SER (pin 14) of a second 74HC595. Share the SRCLK and RCLK lines. Now shift out 16 bits instead of 8, and both chips update simultaneously when you pulse RCLK.
 
 This scales to any number of shift registers. With three 74HC595s, you control 24 outputs from the same 3 MCU pins.
@@ -373,10 +409,27 @@ When load enable is active, on the clock edge all four D inputs are captured sim
 
 A CPU register file is a collection of parallel load registers (typically 16 or 32 registers, each 32 bits wide on ARM Cortex-M). A decoder selects which register to read or write based on the register number encoded in the instruction.
 
-```
-Instruction register field [3:0] → 4-to-16 decoder → enables one of 16 registers
-Data bus [31:0] → all 16 registers simultaneously
-Only the decoded register captures the data on the write clock edge
+```text
+  CPU Register File (simplified)
+
+  Instruction bits [3:0]
+         │
+    ┌────┴────┐
+    │ 4-to-16 │
+    │ Decoder  │
+    └────┬────┘
+         │ enable lines
+    ┌────┼────────────────────┐
+    │  ┌─┴──┐ ┌────┐   ┌────┐│
+    │  │ R0 │ │ R1 │...│R15 ││
+    │  └─┬──┘ └─┬──┘   └─┬──┘│
+    └────┼──────┼────────┼───┘
+         └──────┴────┬───┘
+                     │
+           Data Bus [31:0]
+
+  Only the decoded register captures
+  data on the write clock edge.
 ```
 
 ## Exercises

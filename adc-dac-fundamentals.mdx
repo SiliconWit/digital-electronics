@@ -121,6 +121,26 @@ The SAR ADC is the most common type in microcontrollers. It uses a binary search
 - A SAR register (shift register with control logic)
 - A sample-and-hold circuit
 
+```text
+  SAR ADC block diagram
+
+  Vin ──→[S/H]──→(+)─┐
+                      │ Comparator
+  Vref ──→[DAC]──→(-)─┘
+              ▲           │
+              │       ┌───┴────┐
+              │       │  SAR   │
+              └───────┤Control │
+                      │Register│
+                      └───┬────┘
+                          │
+                     Digital Output
+                      (n-bit code)
+
+  S/H = sample and hold
+  SAR = successive approximation register
+```
+
 **Process for a 4-bit SAR ADC (simplified):**
 
 <Steps>
@@ -217,14 +237,21 @@ The simplest DAC architecture uses only two resistor values: R and 2R. This make
 
 **4-bit R-2R ladder:**
 
-```
-      D3        D2        D1        D0
-      │         │         │         │
-     [2R]      [2R]      [2R]      [2R]
-      │         │         │         │
-      ├───[R]───├───[R]───├───[R]───├───[2R]──→ GND
-      │
-      └──→ Vout (to op-amp buffer)
+```text
+  R-2R ladder DAC (4-bit)
+
+  D3       D2       D1       D0
+  │        │        │        │
+ [2R]     [2R]     [2R]     [2R]
+  │        │        │        │
+  ├──[R]───├──[R]───├──[R]───├──[2R]─→GND
+  │
+  └──→ Vout (to op-amp buffer)
+
+  D3 contributes Vref/2
+  D2 contributes Vref/4
+  D1 contributes Vref/8
+  D0 contributes Vref/16
 ```
 
 Each digital input (D0-D3) connects to either VCC (for a 1) or GND (for a 0). The resistor network creates a weighted sum of the inputs. D3 (MSB) contributes twice as much voltage as D2, which contributes twice as much as D1, and so on.

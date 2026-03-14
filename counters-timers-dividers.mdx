@@ -197,6 +197,21 @@ Q2:     ┌───────────────┐
      ───┘               └─────────────────   (f/8)
 ```
 
+```text
+  Prescaler chain (frequency divider)
+
+  72 MHz          36 MHz   18 MHz    9 MHz
+  Input ──→[FF0]──→[FF1]──→[FF2]──→[FF3]──→
+     │       /2       /2       /2       /2
+     │
+     └──→ 4.5 MHz   2.25 MHz  1.125 MHz
+          [FF4]──→[FF5]──→[FF6]──→ ...
+            /2       /2       /2
+
+  A MUX selects which stage feeds
+  the timer (programmable prescaler).
+```
+
 A chain of $n$ toggle flip-flops divides the frequency by $2^n$:
 
 | Flip-Flops | Division Factor | Example: 72 MHz input |
@@ -243,6 +258,22 @@ Q3·Q1 = 1 only when count = 10 (1010) or 11 (1011) or 14 (1110) or 15 (1111)
 For a BCD counter, detecting $Q_3 \cdot Q_1$ is sufficient because the counter will reset so fast that it never reaches 11. The brief glitch at count 10 lasts only a few nanoseconds before the reset takes effect.
 
 In MCU timers, the auto-reload register serves this purpose. Setting `TIM2->ARR = 999` makes the timer count from 0 to 999 and then reset (modulo-1000 counter).
+
+```text
+  MCU Timer block diagram (simplified)
+
+  System    ┌───────────┐  Timer   ┌──────────┐
+  Clock ───→│ Prescaler │  Clock  │  Counter  │
+  (72MHz)   │ (PSC reg) ├────────→│  (CNT)   │
+            └───────────┘         └────┬─────┘
+                                       │ compare
+                              ┌────────┴────────┐
+                              │  =ARR?   =CCR?  │
+                              └───┬────────┬────┘
+                                  │        │
+                             Overflow   Compare
+                             Interrupt  Match/PWM
+```
 
 ## The 74HC393: Dual 4-Bit Binary Counter
 
