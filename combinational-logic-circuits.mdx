@@ -25,7 +25,7 @@ import { Card, CardGrid, Badge, Steps, LinkButton, FileTree } from '@astrojs/sta
 
 import DigitalElectronicsComments from '../../../../components/digital-electronics/DigitalElectronicsComments.astro';
 
-In the previous lesson you learned individual logic gates. Now you will combine them into larger circuits that perform useful functions: selecting one of several inputs, decoding binary addresses into individual enable signals, and adding binary numbers. These combinational circuits are called "combinational" because their output depends only on the current inputs, with no memory of previous states. Every microcontroller uses these blocks internally. #CombinatorialLogic #Multiplexers #BinaryAdders
+A microcontroller has one data bus but dozens of peripherals. How does it route data to the right one? It uses a multiplexer. How does it select one memory chip out of eight? It uses an address decoder. How does its ALU add two numbers? It chains full adders. These are all combinational circuits: blocks of logic gates whose output depends only on the current inputs, with no memory of previous states. In this lesson you will build multiplexers, decoders, encoders, and adders on a breadboard, then see how the same circuits appear inside every processor you program. #CombinatorialLogic #Multiplexers #BinaryAdders
 
 ## What Is Combinational Logic?
 
