@@ -399,6 +399,10 @@ For filtering, choose a cutoff well below 62.5 kHz. At 625 Hz (1/100 of PWM): $R
 
 </details>
 
+:::tip[Instrument it]
+Sampling rate is not an abstract exercise when you monitor a machine, it decides which faults you can even see. Nyquist says you must sample at least twice the highest frequency of interest, so catching a bearing fault tone near 5 kHz needs at least 10 kHz, and undersampling does not just blur it, it aliases a real fault into a wrong frequency you will misread. Pick the rate from the fault you are hunting, then an [MCU's ADC](/education/sensor-actuator-interfacing-stm32/) can capture it cleanly and [report what it finds](https://siliconwit.io).
+:::
+
 ## How This Connects to Embedded Programming
 
 <InArticleAd />
