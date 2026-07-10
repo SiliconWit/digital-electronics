@@ -31,18 +31,9 @@ Logic gates are the smallest building blocks of digital hardware. Every microcon
 
 Every digital circuit, no matter how complex, is built from these six gate types. Each gate takes one or two binary inputs and produces one binary output.
 
-```text
-  NOT (Inverter)     AND Gate          OR Gate
-  A ──o── Y          A ──┐             A ──┐
-                     B ──┤AND├── Y     B ──┤OR ├── Y
-                         └───┘             └───┘
+![Six Fundamental Gates](./Images/Six Fundamental Gates.png)
 
-  NAND Gate          NOR Gate          XOR Gate
-  A ──┐              A ──┐             A ──┐
-  B ──┤AND├o── Y     B ──┤OR ├o── Y    B ──┤XOR├── Y
-      └───┘              └───┘             └───┘
-      (o = invert)
-```
+*Figure: Six Fundamental Gates*
 
 ### NOT Gate (Inverter)
 
@@ -171,18 +162,9 @@ The 74HC family uses CMOS technology and operates at 2V to 6V, making it compati
 
 ### 74HC08 (Quad AND) Pin Layout
 
-```
-        74HC08
-     ┌────┐
- 1A ─┤1  14├─ VCC
- 1B ─┤2  13├─ 4B
- 1Y ─┤3  12├─ 4A
- 2A ─┤4  11├─ 4Y
- 2B ─┤5  10├─ 3B
- 2Y ─┤6   9├─ 3A
-GND ─┤7   8├─ 3Y
-     └────┘
-```
+![74HC08 Pin Layout](./Images/74HC08_Pinout.png)
+
+*Figure: 74HC08 Pin Layout*
 
 - Pin 7 = GND (connect to 0V)
 - Pin 14 = VCC (connect to 5V)
@@ -195,18 +177,10 @@ The 74HC00 (NAND), 74HC32 (OR), and 74HC86 (XOR) all use the same pinout. Only t
 
 ### 74HC04 (Hex Inverter) Pin Layout
 
-```
-        74HC04
-     ┌────┐
- 1A ─┤1  14├─ VCC
- 1Y ─┤2  13├─ 6A
- 2A ─┤3  12├─ 6Y
- 2Y ─┤4  11├─ 5A
- 3A ─┤5  10├─ 5Y
- 3Y ─┤6   9├─ 4A
-GND ─┤7   8├─ 4Y
-     └────┘
-```
+![74HC04 Pin Layout](./Images/74HC04_Pinout.png)
+
+*Figure: 74HC04 Pin Layout*
+
 
 Each inverter has one input and one output. There are six inverters in one package.
 
@@ -293,19 +267,9 @@ The complement of AND equals the OR of the complements. A NAND gate is equivalen
 
 The complement of OR equals the AND of the complements. A NOR gate is equivalent to an AND gate with inverted inputs.
 
-```text
-  De Morgan's Theorem 1 (NAND = bubbled OR)
+![De Morgans Theorem](./Images/De Morgans Theorem.png)
 
-  A ──┐                    A ──o──┐
-  B ──┤AND├──o── Y    =    B ──o──┤OR ├── Y
-      └───┘                       └───┘
-
-  De Morgan's Theorem 2 (NOR = bubbled AND)
-
-  A ──┐                    A ──o──┐
-  B ──┤OR ├──o── Y    =    B ──o──┤AND├── Y
-      └───┘                       └───┘
-```
+*Figure: De Morgan's Theorem*
 
 **In C code, De Morgan's theorems look like this:**
 
@@ -374,18 +338,10 @@ Notice the column order uses Gray code (only one variable changes between adjace
 
 A practical circuit often chains several gate types. Here is a 2-bit equality comparator that outputs 1 when A1A0 equals B1B0:
 
-```text
-  2-bit equality comparator (A == B)
+![Multi-Gate Combination](./Images/Multi-Gate Combination.png)
 
-  A0 ──┐                ┌───┐
-  B0 ──┤XNOR├── E0 ──┐  │   │
-       └────┘         ├──┤AND├── EQUAL
-  A1 ──┐              │  │   │
-  B1 ──┤XNOR├── E1 ──┘  └───┘
-       └────┘
+*Figure: Multi-Gate Combination*
 
-  EQUAL = 1 only when A1=B1 AND A0=B0
-```
 
 XNOR outputs 1 when its two inputs match. ANDing the per-bit results gives a full equality test. This pattern scales: an 8-bit comparator uses 8 XNOR gates feeding an 8-input AND tree.
 
@@ -413,14 +369,9 @@ $$Y = \overline{\overline{A \cdot B}} = A \cdot B$$
 
 By De Morgan's theorem: $\overline{\overline{A} \cdot \overline{B}} = A + B$
 
-```text
-  OR gate built from three NAND gates
+![Nand as Universal Gate](./Images/NAND as universal gate.png)
 
-  A ──┤NAND├──┐
-      (A,A)   ├─┤NAND├── Y = A + B
-  B ──┤NAND├──┘
-      (B,B)
-```
+*Figure: NAND as a Universal Gate*
 
 This is why the 74HC00 (quad NAND) is often called the most versatile IC in the 74HC family. With enough 74HC00s, you can build any digital circuit.
 

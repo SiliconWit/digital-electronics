@@ -57,16 +57,9 @@ The SR (Set-Reset) latch is the simplest memory element. It stores one bit and h
 Two cross-coupled NAND gates form an SR latch. The output of each gate feeds back to the input of the other:
 
 ```
-    S ──┐
-        ├─NAND─┬── Q
-    ┌───┘      │
-    │   ┌──────┘
-    │   │
-    └───┤
-        ├─NAND─┬── Q̄
-    R ──┘      │
-        ┌──────┘
-        │
+![SR latch](./Images/SR latch.png.png)
+
+*Figure: SR Latch*
 ```
 
 **Truth table (active-low inputs for NAND implementation):**
@@ -109,23 +102,9 @@ The SR latch has two problems: the forbidden state and the lack of a clock. The 
 
 ### How It Works
 
-```text
-  D Flip-Flop
+![DFF](./Images/DFF.png)
 
-       D ──┐         ┌── Q
-           │  D  FF  │
-           ├─────────┤
-       CLK─┤>        ├── Q̄
-           └─────────┘
-
-  Timing:
-  CLK:  ──┐  ┌──┐  ┌──┐  ┌──
-          └──┘  └──┘  └──┘
-  D:    ══╡ 1 ╞═╡ 0 ╞═╡ 1 ╞══
-  Q:    ──┐     ┌────┐     ┌──
-          └─────┘    └─────┘
-         captured on each rising edge
-```
+*Figure: D Flip-Flop*
 
 On the rising edge of the clock (the moment CLK transitions from 0 to 1), the value on the D input is captured and held at Q. At all other times, Q retains its previous value regardless of what D does.
 
@@ -238,17 +217,9 @@ The 74HC595 is an 8-bit serial-in, parallel-out shift register with a storage re
 ### 74HC595 Pin Layout
 
 ```
-         74HC595
-       ┌────┐
-  Q1 ─┤1  16├─ VCC
-  Q2 ─┤2  15├─ Q0
-  Q3 ─┤3  14├─ SER (data in)
-  Q4 ─┤4  13├─ OE (output enable, active low)
-  Q5 ─┤5  12├─ RCLK (latch clock)
-  Q6 ─┤6  11├─ SRCLK (shift clock)
-  Q7 ─┤7  10├─ SRCLR (clear, active low)
- GND ─┤8   9├─ Q7' (serial out, for daisy-chaining)
-       └────┘
+![74HC595](./Images/74HC595.png)
+
+*Figure: 74HC595 Shift Register*
 ```
 
 **Key connections:**
