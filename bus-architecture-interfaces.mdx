@@ -1,7 +1,7 @@
 ---
 title: "Bus Architecture and Communication Interfaces"
 description: "Understand SPI, I2C, and UART at the signal level. See clock polarity, data framing, acknowledge bits, and baud rates. Learn the difference between parallel and serial buses and how each protocol works at the wire level."
-contributors: "sam-macharia"
+contributors: "sam-macharia,ian-kigen"
 pubDate: 2026-03-07
 tags: ["spi", "i2c", "uart", "bus-architecture", "serial-communication", "digital-electronics"]
 excerpt: "When you call HAL_SPI_Transmit() or Wire.beginTransmission(), layers of protocol handle clock generation, data framing, and acknowledgment. This lesson strips away the abstraction and shows you exactly what happens on the wires."
@@ -465,6 +465,10 @@ Time per bit = $\frac{1}{115200} = 8.68 \text{ \textmu s}$
 Total time = $50 \times 8.68 \text{ \textmu s} = 434 \text{ \textmu s} \approx 0.43 \text{ ms}$
 
 </details>
+
+:::tip[Instrument it]
+The SPI, I2C, and UART buses in this lesson carry real traffic you can tap and watch. A cheap logic analyzer decodes the lines on the bench, but a deployed microcontroller can also mirror what crosses the bus: how often a sensor answers, when a device NAKs, how long a transaction takes. An [ESP32 or STM32](/education/sensor-actuator-interfacing-stm32/) sits on the bus and [reports its health to siliconwit.io](https://siliconwit.io), so a flaky sensor or a marginal pull-up shows up as rising error counts instead of a mystery lock-up.
+:::
 
 ## How This Connects to Embedded Programming
 
