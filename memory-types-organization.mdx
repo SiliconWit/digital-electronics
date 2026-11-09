@@ -25,24 +25,29 @@ import { Card, CardGrid, Badge, Steps, LinkButton, FileTree } from '@astrojs/sta
 
 import DigitalElectronicsComments from '../../../../components/digital-electronics/DigitalElectronicsComments.astro';
 
-Your microcontroller has several types of memory, and understanding them changes how you write firmware. Declaring a `const` array puts it in Flash (no RAM used). A global variable lives in SRAM. Writing calibration data to EEPROM keeps it safe across power cycles. This lesson explains how each memory technology stores bits, how the bus system connects the CPU to memory, and how the memory map gives every byte a unique address. #Memory #SRAM #Flash
+A device loses its calibration every time the power fails. A program that worked for months stops when one more array fills the last bytes of RAM. A data logger wears out its storage in a week. Each fault comes from putting data in the wrong kind of memory. A microcontroller (MCU) has three kinds: SRAM, Flash and EEPROM. This lesson shows how each one stores a bit, what each one is good and bad at, and how the memory map gives every byte and every hardware register its own address. #Memory #SRAM #Flash
 
 ## Memory Classification
 
-All digital memory falls into two categories:
+Volatile memory forgets its contents when the power is removed. Non-volatile memory keeps them, but it is slower to write and it wears out.
 
 | Category | Retains Data Without Power? | Speed | Examples |
 |----------|---------------------------|-------|---------|
 | **Volatile** | No | Fast | SRAM, DRAM |
 | **Non-volatile** | Yes | Slower | Flash, EEPROM, ROM |
 
-Microcontrollers typically contain:
+A microcontroller uses each kind for a different job:
 
-- **SRAM** for variables, stack, and heap (volatile, fast, read/write)
-- **Flash** for program code and constant data (non-volatile, fast read, slow write)
-- **EEPROM** for configuration and calibration data (non-volatile, byte-erasable, slow)
+- SRAM holds variables while the program runs. It is fast, and its contents are lost at power-off.
+- Flash holds the program and constant data. It is slow to write.
+- EEPROM holds settings and calibration data. It changes one byte at a time.
 
-Some MCUs (like the ESP32) use external SPI Flash. Others (like the STM32F103) have all three on-chip.
+| MCU | SRAM | Flash | EEPROM |
+|-----|------|-------|--------|
+| ATmega328P | 2 KB | 32 KB | 1 KB |
+| STM32F103C8T6 (Blue Pill) | 20 KB | 64 KB | None (emulated in Flash) |
+| ESP32 | 520 KB | 4 MB (external SPI Flash) | None (emulated in Flash) |
+| RP2040 (Pico) | 264 KB | 2 MB (external QSPI Flash) | None |
 
 ## SRAM: Static Random Access Memory
 
@@ -51,24 +56,18 @@ Some MCUs (like the ESP32) use external SPI Flash. Others (like the STM32F103) h
 
 ### The 6-Transistor Cell
 
-Each bit in SRAM is stored by a circuit called a 6T cell. It consists of two cross-coupled inverters that form a bistable latch (similar to the SR latch from Lesson 4), plus two access transistors controlled by a word line.
+Each bit in SRAM is stored by a circuit of six transistors, called a 6T cell. Four of them form two inverters (NOT gates), and the output of each inverter feeds the input of the other. If Q is 1, the first inverter makes Q' 0, and the second inverter turns that 0 back into the 1 at Q. The loop holds its own value, like the SR latch built from two cross-coupled gates. It holds it only while power is supplied.
 
-**Conceptual structure:**
-
-```
-          Word Line
-             │
-     ┌───────┼───────┐
-     │       │       │
-  Access   Cross-coupled   Access
-   FET    Inverter Pair     FET
-     │       │       │
-     └───┬───┘   ┌───┘
-         │       │
-      Bit Line  Bit Line (complement)
+```text
+              word line (selects this cell)
+       ──────┬──────────────────────┬──────
+             │                      │
+  BL ────[switch]─┬──►[NOT]──►──┬─[switch]──── BL'
+                  Q             Q'
+                  └──◄[NOT]◄────┘
 ```
 
-The two inverters hold the cell in one of two stable states: storing a 0 or storing a 1. The access transistors connect the cell to the bit lines when the word line is activated (during a read or write).
+The other two transistors are switches. When the word line is active, they connect the cell to the two bit lines, BL and BL'. To read, the CPU senses the bit lines. To write, it forces them to the new value, which overpowers the small inverters.
 
 **Key properties of SRAM:**
 
@@ -89,18 +88,13 @@ When you write:
 int x = 42;
 ```
 
-The compiler allocates space in SRAM for `x`. The CPU can read and write this location in a single clock cycle, which is essential for performance. Variables, the stack (function calls, local variables, return addresses), and the heap (dynamic allocation) all live in SRAM.
+The compiler reserves space in SRAM for `x`. The CPU can read and write this location in a single clock cycle, and it can do so any number of times. Three things live in SRAM:
 
-### SRAM Sizes in Common MCUs
+- global variables
+- the stack, which holds local variables and the return addresses of function calls
+- the heap, the area that `malloc` gives out while the program runs
 
-| MCU | SRAM Size |
-|-----|-----------|
-| ATmega328P | 2 KB |
-| STM32F103C8T6 (Blue Pill) | 20 KB |
-| ESP32 | 520 KB |
-| RP2040 (Pico) | 264 KB |
-
-With only 2 KB on an ATmega328P, every byte counts. Understanding that each variable consumes SRAM helps you write memory-efficient firmware.
+An ATmega328P has only 2 KB, and one 512-byte buffer takes a quarter of it.
 
 ## Flash Memory
 
@@ -109,15 +103,15 @@ With only 2 KB on an ATmega328P, every byte counts. Understanding that each vari
 
 ### The Floating Gate Transistor
 
-Flash memory stores bits using a special transistor with a floating gate: an electrically isolated conductor surrounded by insulating oxide layers.
+To keep a bit without power, something must stay in place when the supply is gone. Flash uses a transistor with one extra part, the floating gate: a small piece of conductor with insulating oxide on every side and no wire to it. Think of a sealed jar. Electric charge that is forced into the jar stays there for years, because it has no path out. The comparison stops here: every time charge is forced through the wall, the wall is damaged a little.
 
-**How it works:**
+The stored charge changes the threshold voltage of the transistor, which is the gate voltage needed to switch it on.
 
-1. **Programmed (storing 0):** Electrons are forced onto the floating gate by applying a high voltage (around 10-20V internally). The trapped electrons raise the transistor's threshold voltage, making it harder to turn on.
+1. **Programmed (storing 0):** A high voltage (around 10-20V, made inside the chip) forces electrons onto the floating gate. They raise the threshold voltage, so the transistor is harder to switch on.
 
-2. **Erased (storing 1):** The electrons are removed from the floating gate by applying a voltage in the opposite direction. The threshold voltage returns to its normal level.
+2. **Erased (storing 1):** A voltage in the opposite direction removes the electrons. The threshold voltage returns to its normal level.
 
-3. **Reading:** A normal read voltage is applied to the control gate. If the cell is erased (threshold normal), the transistor conducts and the bit reads as 1. If programmed (threshold high), the transistor does not conduct and the bit reads as 0.
+3. **Reading:** A normal read voltage is applied to the control gate. An erased cell conducts, and the bit reads as 1. A programmed cell does not conduct, and the bit reads as 0.
 
 **Key properties of Flash:**
 
@@ -134,33 +128,20 @@ Flash memory stores bits using a special transistor with a floating gate: an ele
 | Property | NOR Flash | NAND Flash |
 |----------|-----------|------------|
 | Read access | Random (byte-addressable) | Sequential (page-based) |
-| Read speed | Fast | Moderate |
-| Write speed | Slow | Moderate |
-| Erase block size | 64-256 KB | 16-512 KB |
 | Cost per bit | Higher | Lower |
 | Used for | MCU program memory | USB drives, SD cards, SSDs |
 
-Most microcontrollers use NOR Flash for internal program storage because it allows the CPU to execute code directly from Flash (execute-in-place, or XIP). The STM32F103 has 64 KB of NOR Flash where your compiled firmware lives.
+The two types differ in how the cells are wired together. Most microcontrollers use NOR Flash for the program, because the CPU can read any byte directly and so can run code from Flash without copying it to RAM. The STM32F103C8 has 64 KB of NOR Flash for your compiled firmware.
 
 ### Flash Write Restrictions
 
-Flash has two important constraints:
+Flash has two constraints that surprise people who think of it as slow RAM:
 
-1. **Cannot write individual bytes.** Flash is organized into pages (typically 1-4 KB on MCUs). To change any byte in a page, you must erase the entire page first, then write the new data.
+1. **Erase works on a whole page.** Flash is organized into pages (typically 1-4 KB on MCUs). Erasing sets every bit of the page to 1.
 
-2. **Erase sets all bits to 1.** Programming can only change bits from 1 to 0. To change a 0 back to 1, you must erase the entire page.
+2. **Programming only changes a 1 to a 0.** To change one 0 back to 1, you must erase the entire page and write all of it again.
 
-This is why firmware updates take time: the bootloader must erase each Flash page before writing new firmware.
-
-### Flash Sizes in Common MCUs
-
-| MCU | Flash Size |
-|-----|------------|
-| ATmega328P | 32 KB |
-| STM32F103C8T6 (Blue Pill) | 64 KB |
-| ESP32 | 4 MB (external SPI Flash) |
-| RP2040 (Pico) | 2 MB (external QSPI Flash) |
-
+This is why a firmware update takes time: the bootloader, the small program that receives new firmware, must erase each Flash page before it writes. Each erase also wears the page a little.
 ## EEPROM: Electrically Erasable Programmable ROM
 
 <InArticleAd />
@@ -168,9 +149,9 @@ This is why firmware updates take time: the bootloader must erase each Flash pag
 
 ### How EEPROM Differs from Flash
 
-EEPROM uses the same floating-gate technology as Flash but with one critical difference: EEPROM can erase and write individual bytes, while Flash must erase entire pages.
+EEPROM uses the same floating gate as Flash, with one difference: EEPROM can erase and write a single byte, while Flash must erase a whole page.
 
-This byte-level granularity makes EEPROM ideal for storing small amounts of configuration data that change infrequently: calibration values, device IDs, user settings.
+This suits small amounts of data that change now and then: calibration values, device IDs, user settings.
 
 **Key properties of EEPROM:**
 
@@ -184,18 +165,11 @@ This byte-level granularity makes EEPROM ideal for storing small amounts of conf
 
 ### EEPROM in MCUs
 
-| MCU | Internal EEPROM |
-|-----|----------------|
-| ATmega328P | 1 KB |
-| STM32F103 | None (emulated in Flash) |
-| ESP32 | None (emulated in Flash) |
-| External I2C EEPROM (24C256) | 32 KB |
-
-The STM32F103 does not have dedicated EEPROM. Instead, ST provides an "EEPROM emulation" library that uses two Flash pages to simulate byte-level writes. This technique uses page rotation: when one page fills up, modified data is copied to the other page, and the original page is erased.
+The ATmega328P has 1 KB of EEPROM. An external EEPROM chip such as the 24C256 adds 32 KB to any MCU. The STM32F103 has no EEPROM. ST provides an "EEPROM emulation" library that uses two Flash pages in its place. Each new value is written to the next free space in a page. When the page is full, the latest values are copied to the other page, and the full page is erased.
 
 ### Wear Leveling
 
-With 100,000 write cycles per cell, writing to the same EEPROM address in a tight loop can wear it out in minutes. Wear leveling distributes writes across multiple addresses to extend the total lifespan.
+A cell that lasts 100,000 writes sounds safe, but a program can use them quickly. A loop that writes one address again and again, at about 3.3 ms per write, uses 100,000 writes in under 6 minutes. Wear leveling spreads the writes over many addresses, so each cell receives only a share of them.
 
 ```c
 // BAD: writes to the same address every loop iteration
@@ -220,23 +194,18 @@ while (1) {
 
 ### Bus Basics
 
+The CPU must tell memory which byte it wants, and then move the data. It does both through buses: groups of parallel wires shared by the CPU, the memories and the peripherals (the hardware blocks, such as timers and pin drivers, built into the chip).
+
 ```text
-  Address bus, data bus, and control signals
-
   ┌───────┐                        ┌────────┐
-  │       │══ Address [31:0] ════→│        │
+  │       │══ Address [31:0] ═════►│        │
   │  CPU  │                        │ Memory │
-  │       │◄═ Data [31:0] ══════►│  or    │
+  │       │◄═ Data [31:0] ════════►│  or    │
   │       │                        │Periph. │
-  │       │── RD / WR ──────────→│        │
-  │       │── Chip Select ───────→│        │
+  │       │── RD / WR ────────────►│        │
+  │       │── Chip Select ────────►│        │
   └───────┘                        └────────┘
-     32 address lines: select location
-     32 data lines:    carry read/write data
-     Control lines:    read, write, enable
 ```
-
-The CPU communicates with memory (and peripherals) through buses: groups of parallel signal lines that carry addresses, data, and control signals.
 
 | Bus | Function | Width (STM32F103) |
 |-----|----------|-------------------|
@@ -246,29 +215,29 @@ The CPU communicates with memory (and peripherals) through buses: groups of para
 
 ### A Memory Read Cycle
 
-When the CPU executes `x = *((volatile uint32_t *)0x40021000);`:
+The C line `x = *((volatile uint32_t *)0x40021000);` means "read the 32-bit value at address `0x40021000` and put it in `x`". The CPU does it in these steps:
 
 <Steps>
 1. The CPU places the address `0x40021000` on the address bus.
-2. The CPU asserts the READ signal on the control bus.
-3. The address decoder (Lesson 3) determines which device responds. In this case, the address falls in the peripheral region, specifically the RCC block.
+2. The CPU makes the READ signal active on the control bus.
+3. The address decoder, a combinational circuit that turns an address into one enable line, selects the device that must answer. This address belongs to a peripheral: the RCC block, which controls the clocks.
 4. The selected device places the requested 32-bit data on the data bus.
-5. The CPU latches the data from the data bus into an internal register.
+5. The CPU captures the data from the data bus in an internal register.
 6. The value is stored in the variable `x` (in SRAM).
 </Steps>
 
-This entire process typically completes in one or two clock cycles for SRAM and Flash, but may take more cycles for slower peripherals (adding "wait states").
+For SRAM and Flash this takes one or two clock cycles. A slower device asks the CPU to wait for extra cycles, called wait states.
 
 ### A Memory Write Cycle
 
-When the CPU executes `*((volatile uint32_t *)0x40021000) = 0x00000001;`:
+The line `*((volatile uint32_t *)0x40021000) = 0x00000001;` writes the value 1 to the same address:
 
 <Steps>
 1. The CPU places `0x40021000` on the address bus.
 2. The CPU places `0x00000001` on the data bus.
-3. The CPU asserts the WRITE signal.
+3. The CPU makes the WRITE signal active.
 4. The address decoder enables the RCC block.
-5. The RCC peripheral latches the data from the data bus into the target register.
+5. The RCC block captures the data from the data bus in the register at that address.
 </Steps>
 
 ## Memory Maps
@@ -278,43 +247,31 @@ When the CPU executes `*((volatile uint32_t *)0x40021000) = 0x00000001;`:
 
 ### What Is a Memory Map?
 
-A memory map defines how the entire address space is divided among different types of memory and peripherals. Every address in the 32-bit address space (0x00000000 to 0xFFFFFFFF) is assigned to a specific resource.
+A 32-bit address bus can name about 4 billion bytes (0x00000000 to 0xFFFFFFFF). The chip has far less than that, so most addresses are empty. The memory map is the plan that says which range of addresses belongs to which device, as a street plan says which house numbers belong to which building. Here is the map of the STM32F103C8, with the lowest address at the bottom:
 
 ```text
-  MCU Memory Map (STM32F103)
-
-  0xFFFFFFFF ┌──────────────────────┐
-             │ Cortex-M3 internals  │
-  0xE0000000 ├──────────────────────┤
-             │     (reserved)       │
-  0x40024000 ├──────────────────────┤
-             │ Peripherals (AHB)    │
-  0x40000000 ├──────────────────────┤
-             │     (reserved)       │
-  0x20005000 ├──────────────────────┤
-             │ SRAM  (20 KB)        │
-             │ variables, stack     │
-  0x20000000 ├──────────────────────┤
-             │     (reserved)       │
-  0x08010000 ├──────────────────────┤
-             │ Flash (64 KB)        │
-             │ program code, const  │
-  0x08000000 └──────────────────────┘
+  0xFFFFFFFF ┌─────────────────────────────┐
+             │ Cortex-M3 internals         │
+  0xE0000000 ├─────────────────────────────┤
+             │     (reserved)              │
+  0x40024000 ├─────────────────────────────┤
+             │ Peripheral registers        │
+  0x40000000 ├─────────────────────────────┤
+             │     (reserved)              │
+  0x20005000 ├─────────────────────────────┤
+             │ SRAM 20 KB: variables, stack│
+  0x20000000 ├─────────────────────────────┤
+             │     (reserved)              │
+  0x08010000 ├─────────────────────────────┤
+             │ Flash 64 KB: program, const │
+  0x08000000 └─────────────────────────────┘
 ```
 
-### STM32F103 Memory Map (Simplified)
-
-| Address Range | Size | Device |
-|--------------|------|--------|
-| 0x00000000 - 0x0000FFFF | 64 KB | Flash (program code) |
-| 0x08000000 - 0x0800FFFF | 64 KB | Flash (aliased) |
-| 0x20000000 - 0x20004FFF | 20 KB | SRAM (variables, stack) |
-| 0x40000000 - 0x40023FFF | varies | Peripheral registers (APB1, APB2, AHB) |
-| 0xE0000000 - 0xE00FFFFF | varies | Cortex-M3 system peripherals (NVIC, SysTick, SCB) |
+The size of a region follows from its range: 0x08000000 to 0x0800FFFF is 0x10000 addresses, which is 65,536 bytes or 64 KB. When the chip starts from Flash, the same Flash also appears at address 0x00000000. A second range that reaches the same memory is called an alias.
 
 ### How the Memory Map Enables Memory-Mapped I/O
 
-In the STM32 (and most modern MCUs), peripheral registers are mapped into the same address space as memory. This means you access a GPIO pin the same way you access a variable in SRAM: by reading or writing an address.
+The peripheral region holds no memory chip. Its addresses lead to registers: small groups of flip-flops whose outputs control hardware, such as a GPIO (general purpose input/output) pin. This is memory-mapped I/O. You control a pin the same way you change a variable in SRAM: by writing to an address.
 
 ```c
 // This writes to SRAM (a variable)
@@ -324,20 +281,20 @@ uint32_t x = 42;
 *((volatile uint32_t *)0x4001080C) = 0x0001;  // GPIOA output data register
 ```
 
-The CPU does not know or care whether the address points to SRAM, Flash, or a peripheral. It puts the address on the bus, and the decoder routes it to the right device. This unification is what makes memory-mapped I/O elegant and efficient.
+The CPU does not know whether the address leads to SRAM, Flash or a peripheral. It puts the address on the bus, and the decoder selects the right device. So the CPU needs no special instructions for hardware.
 
 ### The ATmega328P Memory Map
 
-The ATmega328P has a simpler but similar structure:
+The data memory of the ATmega328P has the same structure on a smaller scale. Its program Flash has a separate address space.
 
 | Address Range | Size | Device |
 |--------------|------|--------|
-| 0x0000 - 0x001F | 32 bytes | CPU registers (R0-R31) |
-| 0x0020 - 0x005F | 64 bytes | I/O registers (PORTB, DDRB, etc.) |
-| 0x0060 - 0x00FF | 160 bytes | Extended I/O registers |
-| 0x0100 - 0x08FF | 2 KB | SRAM |
+| 0x0000 to 0x001F | 32 bytes | CPU registers (R0-R31) |
+| 0x0020 to 0x005F | 64 bytes | I/O registers (PORTB, DDRB, etc.) |
+| 0x0060 to 0x00FF | 160 bytes | Extended I/O registers |
+| 0x0100 to 0x08FF | 2 KB | SRAM |
 
-On the ATmega328P, registers and I/O are mapped into the data memory address space. When you write `PORTB = 0xFF;`, the compiler generates a store instruction to address 0x25 (the PORTB I/O register address).
+When you write `PORTB = 0xFF;`, the compiler generates a store instruction to address 0x25, the address of the PORTB register.
 
 ## The `volatile` Keyword and Memory Access
 
@@ -346,7 +303,7 @@ On the ATmega328P, registers and I/O are mapped into the data memory address spa
 
 ### Why `volatile` Matters
 
-When accessing memory-mapped peripheral registers, you must use the `volatile` keyword:
+A compiler makes code faster by removing work that looks useless. If your program reads the same address twice and writes nothing between, the compiler assumes the value is the same and reads once. For a variable that is correct. For a hardware register it is wrong, because the hardware changes the value by itself. (The C word `volatile` has nothing to do with volatile memory.)
 
 ```c
 volatile uint32_t *gpio_odr = (volatile uint32_t *)0x4001080C;
@@ -355,13 +312,14 @@ volatile uint32_t *gpio_odr = (volatile uint32_t *)0x4001080C;
 
 Without `volatile`, the compiler may:
 
-1. **Cache the value** in a CPU register and never actually write to the peripheral
-2. **Optimize away** repeated reads, assuming the value has not changed
-3. **Reorder** accesses, breaking timing-sensitive peripheral sequences
+1. keep the value in a CPU register and never write it to the peripheral
+2. remove a write that is followed by another write to the same address
 
-The `volatile` keyword tells the compiler: "This memory location can change at any time (by hardware), and every read/write must actually happen, in order, to the real address."
+The `volatile` keyword tells the compiler: "Hardware can change this location at any time. Every read and write in the code must really happen, in order."
 
 ### Example: Polling a Status Register
+
+The loop below polls: it reads a status register again and again until bit 6 (`0x40`) becomes 1.
 
 ```c
 // WITHOUT volatile (BUG: may loop forever)
@@ -385,11 +343,11 @@ An MCU has a 16-bit address bus and an 8-bit data bus. What is the maximum addre
 <details>
 <summary>**Solution**</summary>
 
-Maximum addressable memory: $2^{16} = 65,536$ bytes = 64 KB.
+Maximum addressable memory: $2^{16} = 65{,}536$ bytes = 64 KB.
 
 Each byte requires 8 bits of storage. Each bit requires one 6T SRAM cell.
 
-Total cells: $65,536 \times 8 = 524,288$ cells, each using 6 transistors = 3,145,728 transistors.
+Total cells: $65{,}536 \times 8 = 524{,}288$ cells, each using 6 transistors: $524{,}288 \times 6 = 3{,}145{,}728$ transistors.
 
 </details>
 
@@ -434,19 +392,11 @@ So reading or writing this address accesses GPIOB_ODR, which controls the output
 
 <CardGrid>
   <Card title="Variable Placement" icon="setting">
-    When you declare `const uint8_t table[] = {1,2,3};`, the compiler places it in Flash (saving SRAM). Without `const`, it goes in SRAM. On a tiny MCU with 2 KB SRAM, this distinction matters enormously.
-  </Card>
-
-  <Card title="Flash Programming" icon="open-book">
-    When you flash firmware via SWD/JTAG, the debugger erases Flash pages and writes your compiled binary. The page erase constraint is why some bootloaders take time and why partial updates are tricky.
+    On an STM32, a table declared `const uint8_t table[] = {1,2,3};` stays in Flash and uses no SRAM. Without `const`, it is copied to SRAM at start-up. On the ATmega328P, `const` is not enough: the table also needs the `PROGMEM` keyword.
   </Card>
 
   <Card title="EEPROM for Persistent Data" icon="rocket">
-    Storing WiFi credentials, calibration offsets, or device serial numbers in EEPROM (or Flash emulation) keeps them safe across power cycles and firmware updates. Understanding write endurance prevents premature wear-out.
-  </Card>
-
-  <Card title="Memory-Mapped I/O" icon="approve-check">
-    The unified memory map is what lets you write `GPIOB->ODR = 0x01;` and have it control a physical pin. The compiler generates a store instruction to a specific address, the bus routes it to the GPIO peripheral, and the pin changes state.
+    WiFi credentials, calibration offsets and serial numbers stored in EEPROM (or Flash emulation) survive a power failure. Count the writes over the life of the product before you choose how often to save.
   </Card>
 </CardGrid>
 
@@ -461,14 +411,9 @@ So reading or writing this address accesses GPIOB_ODR, which controls the output
 | Flash | No | Page erase, then write | 10K-100K cycles | Program code, constant data |
 | EEPROM | No | Single byte | 100K-1M cycles | Configuration, calibration |
 
-| Bus Concept | Role |
-|-------------|------|
-| Address bus | Selects which memory location or peripheral register |
-| Data bus | Carries the data being read or written |
-| Memory map | Assigns address ranges to Flash, SRAM, and peripherals |
-| `volatile` | Ensures the compiler does not optimize away hardware accesses |
+The memory map gives Flash, SRAM and every peripheral register a range of addresses, and `volatile` makes the compiler perform every access to a register.
 
-In the next lesson, you will see how buses extend beyond the MCU to communicate with external devices through SPI, I2C, and UART.
+The buses in this lesson stay inside the chip. SPI, I2C and UART are the buses that leave it, to reach sensors and other devices.
 
 <DigitalElectronicsComments />
 

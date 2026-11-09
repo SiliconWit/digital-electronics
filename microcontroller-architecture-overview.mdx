@@ -25,15 +25,17 @@ import { Card, CardGrid, Badge, Steps, LinkButton, FileTree } from '@astrojs/sta
 
 import DigitalElectronicsComments from '../../../../components/digital-electronics/DigitalElectronicsComments.astro';
 
-You have now seen every major building block: logic gates perform Boolean operations, flip-flops store bits, counters keep time, memory holds data and code, buses move information, and ADCs bridge the analog world. This final lesson shows how all of these components are organized inside a microcontroller. When you write `int x = 5;` in C, a specific sequence of events unfolds in hardware: the instruction is fetched from Flash, decoded into control signals, executed in the ALU, and the result is stored in SRAM. Understanding this chain makes you a more effective embedded programmer. #CPUArchitecture #MicrocontrollerDesign #EmbeddedHardware
+A program stops in a fault handler, and the debugger shows only registers and addresses. A deep chain of function calls destroys a variable that it never names. An interrupt arrives later than you calculated. To find faults like these, you need to know what the CPU (central processing unit) does with each line of your code. This lesson follows one C statement, `int x = 5;`, from Flash through the CPU into SRAM, and then shows how the stack, the hardware registers and interrupts use the same machine. #CPUArchitecture #MicrocontrollerDesign #EmbeddedHardware
 
 ## Von Neumann vs Harvard Architecture
 
+A CPU needs two things from memory: the instructions that say what to do, and the data to do it with. The first design choice is whether both travel on the same road.
+
 ### Von Neumann Architecture
 
-In the Von Neumann model, program instructions and data share the same memory and the same bus:
+In the Von Neumann model, instructions and data share one memory and one bus:
 
-```
+```text
 ┌─────────┐      ┌───────────────────┐
 │         │      │     Memory        │
 │   CPU   │══════│  (code + data)    │
@@ -42,17 +44,15 @@ In the Von Neumann model, program instructions and data share the same memory an
           single bus
 ```
 
-**Properties:**
-- One bus for both instructions and data
-- Simpler design, fewer wires
-- Cannot fetch an instruction and access data simultaneously (the "Von Neumann bottleneck")
-- Used in most desktop and server processors
+- The design is simple and needs few wires.
+- The CPU cannot fetch an instruction and read data at the same moment. One must wait.
+- Most desktop and server processors use it.
 
 ### Harvard Architecture
 
 In the Harvard model, instructions and data have separate memories and separate buses:
 
-```
+```text
 ┌─────────┐      ┌───────────────────┐
 │         │══════│  Program Memory   │
 │   CPU   │      │  (Flash)          │
@@ -62,17 +62,14 @@ In the Harvard model, instructions and data have separate memories and separate 
          two separate buses
 ```
 
-**Properties:**
-- Separate buses for instructions and data
-- Can fetch the next instruction while accessing data (parallelism)
-- Higher performance for a given clock speed
-- Used in most microcontrollers (AVR, PIC)
+- The CPU can fetch the next instruction while it reads or writes data, so it does more work at the same clock speed.
+- Many small microcontrollers use it (AVR, PIC).
 
 ### Modified Harvard (ARM Cortex-M)
 
-ARM Cortex-M processors use a modified Harvard architecture: instructions and data have separate buses inside the CPU, but they share a unified memory map externally. The AHB bus matrix allows simultaneous instruction fetch and data access to different memory regions.
+ARM Cortex-M processors use a mixture: instructions and data have separate buses inside the CPU, but all memory shares one memory map. A switching block, the AHB bus matrix, connects each CPU bus to the memory it asks for. The CPU can fetch an instruction and access data at the same time when they are in different memories.
 
-```
+```text
                    ┌──────────────────┐
                    │   AHB Bus Matrix │
 ┌─────────┐       │                  │     ┌───────┐
@@ -83,10 +80,10 @@ ARM Cortex-M processors use a modified Harvard architecture: instructions and da
 ```
 
 - **I-bus (Instruction):** fetches instructions from Flash
-- **D-bus (Data):** reads/writes data from SRAM and peripherals
-- **S-bus (System):** debug access, DMA
+- **D-bus (Data):** reads constants and other data stored in the code region (Flash)
+- **S-bus (System):** reads/writes SRAM and peripherals
 
-This is why the STM32 can execute code from Flash at full speed while simultaneously reading data from SRAM. The bus matrix arbitrates when both buses try to access the same memory region.
+So the STM32 can run code from Flash while it reads data from SRAM. When two buses ask for the same memory, the bus matrix makes one of them wait.
 
 ## Inside the CPU
 
@@ -95,64 +92,58 @@ This is why the STM32 can execute code from Flash at full speed while simultaneo
 
 ### Block Diagram
 
-A simplified microcontroller CPU contains these core components:
+A CPU has two halves. The first half finds the next instruction and works out what it asks for:
 
+```text
+┌─────────┐   ┌───────────┐   ┌─────────┐
+│ Program │   │Instruction│   │ Control │
+│ Counter │──→│ Register  │──→│  Unit   │
+│  (PC)   │   │           │   │         │
+└─────────┘   └───────────┘   └────┬────┘
+ address of    instruction         │
+ the next      in work             ▼
+ instruction                 control signals
 ```
-┌──────────────────────────────────────────────────┐
-│                      CPU                          │
-│                                                   │
-│  ┌─────────┐   ┌──────────┐   ┌──────────────┐  │
-│  │ Program  │   │ Instruc- │   │   Control    │  │
-│  │ Counter  │──→│  tion    │──→│    Unit      │  │
-│  │  (PC)    │   │ Register │   │              │  │
-│  └─────────┘   └──────────┘   └──────┬───────┘  │
-│       │                               │          │
-│       │        ┌──────────────────────┘          │
-│       │        │  Control signals                │
-│       │        ▼                                  │
-│  ┌─────────────────────────────────┐             │
-│  │       Register File             │             │
-│  │  R0  R1  R2  ... R12  SP  LR  PC│             │
-│  └────────────┬────────────────────┘             │
-│               │                                   │
-│          ┌────┴────┐                              │
-│          │   ALU   │                              │
-│          │ (add,   │                              │
-│          │  sub,   │                              │
-│          │  AND,   │                              │
-│          │  OR...) │                              │
-│          └────┬────┘                              │
-│               │                                   │
-│          ┌────┴────┐                              │
-│          │  Flags  │                              │
-│          │ (N,Z,   │                              │
-│          │  C,V)   │                              │
-│          └─────────┘                              │
-└──────────────────────────────────────────────────┘
+
+The second half does the work. The control signals choose which registers supply values, what the ALU (arithmetic logic unit) does with them, and where the result goes:
+
+```text
+┌─────────────────────────────────┐
+│          Register File          │
+│ R0  R1  R2 ... R12  SP  LR  PC  │
+└───────┬─────────────────▲───────┘
+        │ two values      │ result
+     ┌──▼──────────────┐  │
+     │       ALU       ├──┘
+     │ add, sub, AND...│
+     └────────┬────────┘
+         ┌────▼────┐
+         │  Flags  │
+         │ N Z C V │
+         └─────────┘
 ```
 
 ### Program Counter (PC)
 
-The Program Counter holds the address of the next instruction to fetch. After each instruction is fetched, the PC automatically increments to point to the following instruction.
+The Program Counter holds the address of the next instruction to fetch. After each fetch, the PC increases to point to the instruction that follows.
 
-On ARM Cortex-M, the PC is register R15. It always contains the address of the current instruction plus 4 (due to the pipeline prefetch).
+On ARM Cortex-M, the PC is register R15. If an instruction reads the PC, it gets its own address plus 4, because the CPU has already fetched ahead.
 
-Branch instructions (`B`, `BL`, `BX`) modify the PC directly, causing execution to jump to a different address. This is how `if`, `while`, and function calls work at the hardware level.
+Branch instructions (`B`, `BL`, `BX`) write a new address into the PC, so execution continues at a different place. This is how `if`, `while` and function calls work in hardware.
 
 ### Instruction Register and Decoder
 
-The instruction fetched from Flash is placed in the Instruction Register. The Control Unit decodes it to determine:
+The instruction fetched from Flash is placed in the Instruction Register. An instruction is only a binary number. The Control Unit decodes it to find:
 
-- What operation to perform (add, subtract, load, store, branch)
-- Which registers are the source and destination
-- Whether memory access is needed
-- What addressing mode to use
+- the operation (add, subtract, load, store, branch)
+- the registers that hold the inputs and receive the result
+- whether memory must be read or written
 
-The decoder is a combinational logic circuit (built from gates, like the decoders in Lesson 3) that converts the instruction's binary encoding into control signals for the ALU, register file, and bus interface.
+The decoder is a combinational logic circuit, built from gates like any other decoder. Its inputs are the bits of the instruction, and its outputs are the control signals for the ALU, the register file and the buses.
 
 ### Register File
 
-The register file is a small, fast memory inside the CPU. ARM Cortex-M3 has 16 general-purpose 32-bit registers:
+The register file is a small, fast memory inside the CPU. The CPU works on values here, because memory is slower to reach. ARM Cortex-M3 has 16 core 32-bit registers (13 general-purpose registers plus SP, LR, and PC):
 
 | Register | Name | Purpose |
 |----------|------|---------|
@@ -163,26 +154,24 @@ The register file is a small, fast memory inside the CPU. ARM Cortex-M3 has 16 g
 | R14 | LR | Link Register (return address for function calls) |
 | R15 | PC | Program Counter |
 
-Each register is a 32-bit parallel load register (Lesson 4). On each clock cycle, the register file can typically supply two source operands and accept one result.
+Each register is a row of 32 flip-flops that load together. In one clock cycle, the register file can supply two input values and accept one result.
 
 ### Arithmetic Logic Unit (ALU)
 
-The ALU performs arithmetic and logic operations. It takes two inputs (from the register file) and produces one output plus status flags.
-
-**Operations the ALU performs:**
+The ALU does the arithmetic and the logic. It takes two inputs from the register file and produces one output and the status flags.
 
 | Category | Operations | Built From |
 |----------|-----------|-----------|
-| Arithmetic | ADD, SUB, MUL | Adders (Lesson 3), subtractors |
-| Logic | AND, OR, XOR, NOT | Logic gates (Lesson 2) |
-| Shift | LSL, LSR, ASR, ROR | Shift registers (Lesson 4) |
+| Arithmetic | ADD, SUB, MUL | Adders, subtractors |
+| Logic | AND, OR, XOR, NOT | Logic gates |
+| Shift | LSL, LSR, ASR, ROR | Multiplexers (a barrel shifter) |
 | Compare | CMP (subtract without storing result) | Adder + flag logic |
 
-The ALU is the culmination of everything you learned in Lessons 2 and 3: it is a large combinational circuit that selects the appropriate operation using multiplexers and performs it using gate networks and adders.
+The ALU is one large combinational circuit: adders and gate networks work out the results, and multiplexers select the one that the instruction asks for.
 
 ### Status Flags
 
-The ALU sets four condition flags after each operation:
+A program must make decisions, and a decision needs a fact about the last result. The ALU records four such facts, the condition flags, after an operation:
 
 | Flag | Name | Set When |
 |------|------|----------|
@@ -191,7 +180,7 @@ The ALU sets four condition flags after each operation:
 | C | Carry | Unsigned overflow (carry out of MSB) |
 | V | Overflow | Signed overflow (result does not fit in signed range) |
 
-Conditional branch instructions (`BEQ`, `BNE`, `BCS`, `BCC`) check these flags to decide whether to branch. This is how `if (x == 0)` works: the compiler generates a compare instruction (which sets flags) followed by a conditional branch.
+Conditional branch instructions (`BEQ`, `BNE`, `BCS`, `BCC`) test these flags and branch or do not branch. This is how `if (x == 0)` works: the compiler generates a compare instruction, which sets the flags, and then a conditional branch.
 
 ## The Instruction Execution Cycle
 
@@ -200,7 +189,7 @@ Conditional branch instructions (`BEQ`, `BNE`, `BCS`, `BCC`) check these flags t
 
 ### Fetch-Decode-Execute
 
-Every instruction goes through three stages:
+A cook who follows a recipe reads one line, understands it, does it, and moves to the next line. A CPU treats every instruction the same way, in three stages:
 
 <Steps>
 1. **Fetch:** The CPU puts the PC value on the address bus, reads the instruction from Flash memory, and stores it in the instruction register. The PC increments.
@@ -212,9 +201,9 @@ Every instruction goes through three stages:
 
 ### Pipelining
 
-To improve throughput, the CPU overlaps these stages. While one instruction executes, the next one is being decoded, and the one after that is being fetched:
+The three stages use different parts of the CPU, so they can work on three instructions at once, as the stations of an assembly line do. While one instruction executes, the next is decoded, and the one after that is fetched. This is pipelining:
 
-```
+```text
 Clock:    1     2     3     4     5     6
 Instr 1: Fetch Decode Execute
 Instr 2:       Fetch  Decode Execute
@@ -222,20 +211,20 @@ Instr 3:              Fetch  Decode Execute
 Instr 4:                     Fetch  Decode Execute
 ```
 
-The ARM Cortex-M3 has a 3-stage pipeline. This means three instructions are "in flight" simultaneously. The pipeline is filled during the first three cycles, and after that, one instruction completes every clock cycle.
+The ARM Cortex-M3 has a 3-stage pipeline. Each instruction still takes three cycles, but after the first three cycles one instruction finishes in every clock cycle.
 
-**Pipeline hazards:** When a branch instruction changes the PC, the instructions already in the pipeline (fetched from the wrong address) must be discarded. This is called a pipeline flush and wastes 2 clock cycles on Cortex-M3. This is why branch-heavy code (many `if` statements) can be slower than linear code.
+**The cost of a branch:** When a branch changes the PC, the two instructions behind it in the pipeline were fetched from the wrong address. They are thrown away, and the pipeline fills again. This is a pipeline flush, and it wastes 2 clock cycles on Cortex-M3. So code with many taken branches runs slower than code that runs straight on.
 
 ## What Happens When You Write `int x = 5;`
 
 <InArticleAd />
 
 
-Let us trace this C statement through the entire chain, from source code to hardware.
+Follow this C statement from source code to hardware.
 
 ### Step 1: Compilation
 
-The C compiler translates `int x = 5;` into ARM assembly. If `x` is a local variable:
+The CPU does not understand C. The compiler translates `int x = 5;` into instructions that the CPU has, written here in assembly, the readable form of those instructions. If `x` is a local variable:
 
 ```asm
 MOV R0, #5      ; Load the immediate value 5 into register R0
@@ -244,7 +233,7 @@ STR R0, [SP, #4] ; Store R0 to the stack (SRAM) at offset 4 from SP
 
 ### Step 2: Assembly to Machine Code
 
-The assembler converts these mnemonics to binary machine code:
+The assembler converts each instruction to the binary number that the CPU decodes, the machine code. Thumb and Thumb-2 are the names of the 16-bit and 32-bit instruction formats of Cortex-M:
 
 ```
 MOV R0, #5    →  0xF04F 0x0005   (Thumb-2 encoding)
@@ -260,29 +249,32 @@ The CPU places the PC value (say, `0x08000100`) on the I-bus address lines. The 
 ### Step 4: Decode
 
 The control unit decodes `0xF04F0005` as "MOV R0, #5":
-- Operation: move immediate value to register
+
+- Operation: move an immediate value (a number written inside the instruction) to a register
 - Destination: R0
 - Immediate value: 5
 
-Control signals are generated to:
-- Route the immediate value (5) to the ALU input
-- Set the ALU to pass-through mode
-- Enable write to R0 in the register file
+It then sets the control signals that:
+
+- send the immediate value (5) to the ALU input
+- tell the ALU to pass its input through unchanged
+- enable writing to R0 in the register file
 
 ### Step 5: Execute
 
-The ALU receives the value 5 and passes it through. The result (5) is written to R0 on the next clock edge. The register file (built from D flip-flops, Lesson 4) captures the value.
+The ALU receives the value 5 and passes it through. On the next clock edge, the D flip-flops of R0 capture it.
 
 ### Step 6: Store to SRAM
 
 The next instruction (`STR R0, [SP, #4]`) stores the value in R0 to SRAM:
-- The CPU calculates the address: SP + 4 (stack pointer plus offset)
-- The address goes on the D-bus address lines
-- The value in R0 (5) goes on the D-bus data lines
-- The write control signal is asserted
-- The SRAM at that address latches the value
 
-The variable `x` now exists as the value 5 stored in a specific SRAM location, addressable by `SP + 4`.
+- The CPU calculates the address: SP + 4 (stack pointer plus offset)
+- The address goes on the S-bus address lines
+- The value in R0 (5) goes on the S-bus data lines
+- The write control signal becomes active
+- The SRAM at that address stores the value
+
+The variable `x` is now the value 5 in one SRAM location, at address `SP + 4`. The name `x` exists only in your source code.
 
 ## The Stack
 
@@ -291,24 +283,24 @@ The variable `x` now exists as the value 5 stored in a specific SRAM location, a
 
 ### What Is the Stack?
 
-The stack is a region of SRAM used for:
+Every function call needs some memory for a short time, and gives it back when it returns. The stack is the region of SRAM that lends this memory. It works like a pile of plates: the last plate put on is the first one taken off. A function puts three things on it:
 
-- **Local variables:** function variables that exist only during the function's execution
-- **Return addresses:** when a function is called, the return address (next instruction after the call) is saved on the stack
-- **Saved registers:** registers that a function must preserve are pushed to the stack on entry and popped on exit
+- its local variables, which exist only while the function runs
+- the return address: the instruction to continue with after the call
+- the old values of registers that it must give back unchanged
 
 ### How the Stack Works
 
-The Stack Pointer (SP, R13) points to the top of the stack. On ARM Cortex-M, the stack grows downward (toward lower addresses):
+The Stack Pointer (SP, R13) holds the address of the top of the stack. On ARM Cortex-M the stack grows downward, toward lower addresses:
 
-```
+```text
 High address    ┌──────────────┐
-                │              │  (unused stack space)
+                │              │  (used by the caller)
                 │              │
-                ├──────────────┤ ← SP (after push)
-                │  Saved R4    │
-                ├──────────────┤
+                ├──────────────┤ ← SP (on entry)  
                 │  Saved LR    │
+                ├──────────────┤
+                │  Saved R4    │
                 ├──────────────┤
                 │  Local var x │
                 ├──────────────┤
@@ -322,7 +314,7 @@ Low address     └──────────────┘
 
 ### Stack Overflow
 
-If the stack grows too large (deep recursion, large local arrays), it can overwrite other data in SRAM. This is a stack overflow, and it causes unpredictable behavior, crashes, or silent data corruption. On MCUs with small SRAM (2 KB on ATmega328P), stack overflow is a real concern.
+Nothing stops the stack at the end of its region. If it grows too large (deep recursion, large local arrays), it writes over other data in SRAM. This is a stack overflow. The program may crash, or it may continue with wrong data and give no sign. On an MCU with little SRAM (2 KB on the ATmega328P) it happens easily.
 
 ## Memory-Mapped I/O
 
@@ -331,7 +323,7 @@ If the stack grows too large (deep recursion, large local arrays), it can overwr
 
 ### The Key Insight
 
-On ARM Cortex-M (and most modern MCUs), peripheral registers are assigned specific addresses in the memory map, just like SRAM locations. The CPU accesses them using the same load/store instructions.
+The CPU has no instruction that means "set a pin high". On ARM Cortex-M (and most modern MCUs) it does not need one. The registers of each peripheral, the hardware blocks such as timers and pin drivers, have addresses in the memory map, as SRAM locations have. The CPU reaches them with the same load and store instructions.
 
 ```c
 // Writing to SRAM (a variable)
@@ -343,7 +335,7 @@ volatile uint32_t *gpio_odr = (volatile uint32_t *)0x4001080C;
 *gpio_odr = 0x0001;
 ```
 
-The CPU does not distinguish between these two operations. It puts the address on the bus, and the decoder logic (Lesson 3) routes the data to either SRAM or the GPIO peripheral.
+To the CPU these two operations are the same. It puts the address on the bus, and the address decoder sends the data to SRAM or to the GPIO (general purpose input/output) peripheral.
 
 ### How Writing to a Register Controls Hardware
 
@@ -360,8 +352,6 @@ When you write `GPIOA->ODR = 0x0001;`:
 8. PA0 goes high (3.3V on the physical pin).
 </Steps>
 
-The entire chain, from C code to a pin changing state, involves: compiler, assembler, Flash storage, instruction fetch, decode, execute, bus transaction, address decoding, register latch, and output buffer. Every component you studied in this course plays a role.
-
 ## Interrupts and the Vector Table
 
 <InArticleAd />
@@ -369,7 +359,7 @@ The entire chain, from C code to a pin changing state, involves: compiler, assem
 
 ### Why Interrupts?
 
-Polling (checking a condition in a loop) wastes CPU time. Interrupts allow hardware events to pause the current code, handle the event, and return:
+To know that a visitor has arrived, you can walk to the door every minute and look, or you can fit a doorbell and continue your work. Looking again and again is polling: a loop that tests a condition, and wastes CPU time. The doorbell is an interrupt: a hardware event pauses the running code, the CPU runs a short function for the event (the handler), and then it returns to the paused code.
 
 ```c
 // Polling (wastes CPU time)
@@ -387,45 +377,20 @@ void USART1_IRQHandler(void) {
 <Steps>
 1. **Event occurs:** A peripheral (timer overflow, UART receive, GPIO edge) sets an interrupt request flag.
 
-2. **NVIC arbitration:** The Nested Vectored Interrupt Controller checks the interrupt's priority against the current execution priority. If the new interrupt has higher priority, it proceeds.
+2. **NVIC arbitration:** The NVIC (Nested Vectored Interrupt Controller) compares the priority of the new interrupt with the priority of the code that is running. If the new interrupt has higher priority, it proceeds.
 
-3. **Context save:** The CPU pushes R0-R3, R12, LR, PC, and xPSR onto the stack (8 registers, automatically in hardware on Cortex-M). This takes 12 clock cycles.
+3. **Context save:** The paused code must find its values unchanged when it continues. So the CPU pushes R0-R3, R12, LR, PC, and xPSR (the register that holds the flags) onto the stack. On Cortex-M the hardware does this by itself, in 12 clock cycles.
 
-4. **Vector fetch:** The CPU reads the interrupt vector table to find the address of the handler function. The vector table is an array of function pointers at the start of Flash memory.
+4. **Vector fetch:** The CPU reads the address of the handler function from the interrupt vector table.
 
 5. **Handler execution:** The CPU jumps to the handler function and executes it.
 
-6. **Context restore:** When the handler returns (`BX LR` with a special EXC_RETURN value), the CPU pops the saved registers from the stack and resumes the interrupted code.
+6. **Context restore:** When the handler returns, the CPU pops the saved registers from the stack and continues the paused code.
 </Steps>
 
 ### The Vector Table
 
-```text
-  Interrupt vector table (start of Flash)
-
-  Address     Content
-  0x08000000  ┌───────────────────────┐
-              │ Initial SP value      │
-  0x08000004  ├───────────────────────┤
-              │ Reset handler addr    │ ← entry
-  0x08000008  ├───────────────────────┤
-              │ NMI handler addr      │
-  0x0800000C  ├───────────────────────┤
-              │ HardFault handler     │
-              ├───────────────────────┤
-              │ ...                   │
-  0x080000B4  ├───────────────────────┤
-              │ TIM2 handler addr     │
-              ├───────────────────────┤
-              │ ...                   │
-  0x080000D8  ├───────────────────────┤
-              │ USART1 handler addr   │
-              └───────────────────────┘
-
-  Each entry is a 32-bit function pointer.
-```
-
-The vector table is stored at the beginning of Flash (address `0x08000000` on STM32):
+The CPU must know where the handler of each interrupt is. The vector table is a list of 32-bit addresses, one for each interrupt, in a fixed order. It is stored at the beginning of Flash (address `0x08000000` on STM32):
 
 | Offset | Vector | Description |
 |--------|--------|-------------|
@@ -434,15 +399,15 @@ The vector table is stored at the beginning of Flash (address `0x08000000` on ST
 | 0x0008 | NMI | Non-Maskable Interrupt handler |
 | 0x000C | HardFault | Hardware fault handler |
 | ... | ... | ... |
-| 0x00B4 | TIM2 | Timer 2 interrupt handler |
-| 0x00D8 | USART1 | USART1 interrupt handler |
+| 0x00B0 | TIM2 | Timer 2 interrupt handler |
+| 0x00D4 | USART1 | USART1 interrupt handler |
 | ... | ... | ... |
 
-When the MCU powers on, it reads the initial SP from offset 0x0000 and the reset handler address from offset 0x0004. The program starts executing from the reset handler. This is why the linker script must place the vector table at the correct address.
+When the MCU powers on, it reads the initial SP from offset 0x0000 and the address of the reset handler from offset 0x0004, and starts there. So the vector table must be at exactly this address. The linker script, the file that tells the build tools where each part of the program goes, places it there.
 
 ### Interrupt Latency
 
-On ARM Cortex-M3, the worst-case interrupt latency (from event to first handler instruction) is 12 clock cycles. At 72 MHz, this is about 167 ns. This deterministic latency is what makes Cortex-M suitable for real-time applications.
+Latency is the time from the event to the first instruction of the handler. On ARM Cortex-M3 it is 12 clock cycles when no other handler is in the way. At 72 MHz, that is $12 / 72\text{ MHz} \approx 167\text{ ns}$. Because this time is known in advance, Cortex-M suits real-time work.
 
 ## Exercises
 
@@ -505,13 +470,13 @@ A function `foo()` has 3 local `uint32_t` variables and calls `bar()`, which has
 <details>
 <summary>**Solution**</summary>
 
-`foo()`: 3 variables x 4 bytes = 12 bytes, plus saved LR (4 bytes) = 16 bytes.
+`foo()`: $3 \times 4 = 12$ bytes.
 
-`bar()`: 2 variables x 4 bytes = 8 bytes, plus saved LR (4 bytes) = 12 bytes.
+`bar()`: $2 \times 4 = 8$ bytes.
 
-Total stack depth when `bar()` is executing (called from `foo()`): 16 + 12 = 28 bytes.
+Total stack depth when `bar()` is executing (called from `foo()`): $12 + 8 = 20$ bytes.
 
-In practice, the compiler may also push callee-saved registers and add padding for alignment, so the actual usage is somewhat more.
+In practice, the compiler also saves the return address (LR) in `foo()`, may push callee-saved registers, and adds padding for alignment, so the actual usage is somewhat more.
 
 </details>
 
@@ -522,7 +487,7 @@ Two interrupts fire simultaneously: TIM2 (priority 2) and USART1 (priority 1). O
 <details>
 <summary>**Solution**</summary>
 
-USART1 (priority 1) executes first because it has a lower priority number, meaning higher priority. TIM2 (priority 2) will be serviced after USART1's handler returns, or will preempt if the NVIC is configured for it.
+USART1 (priority 1) executes first because it has a lower priority number, meaning higher priority. TIM2 (priority 2) stays pending and is serviced after USART1's handler returns. A lower-priority interrupt never preempts a higher-priority handler.
 
 </details>
 
@@ -531,43 +496,39 @@ USART1 (priority 1) executes first because it has a lower priority number, meani
 <InArticleAd />
 
 
-```text
-  Microcontroller block diagram (high level)
+The whole microcontroller is a CPU, two memories and a set of peripherals on one bus system:
 
+```text
   ┌─────────────────────────────────────┐
-  │           MCU Chip                  │
-  │                                     │
-  │  ┌───────┐   ┌───────┐  ┌───────┐ │
-  │  │  CPU  │   │ Flash │  │ SRAM  │ │
-  │  │(Cortex│◄═►│(code) │  │(data) │ │
-  │  │  -M)  │   │ 64 KB │  │ 20 KB │ │
-  │  └───┬───┘   └───────┘  └───────┘ │
-  │      │   AHB / APB Bus             │
-  │  ════╪═══════════════════════════  │
-  │      │                             │
-  │  ┌───┴──┐ ┌─────┐ ┌────┐ ┌─────┐ │
-  │  │ GPIO │ │Timer│ │ADC │ │SPI/ │ │
-  │  │Ports │ │/PWM │ │    │ │I2C/ │ │
-  │  │      │ │     │ │    │ │UART │ │
-  │  └──┬───┘ └──┬──┘ └─┬──┘ └──┬──┘ │
-  └─────┼────────┼──────┼───────┼────┘
-     Pins     Pins   Analog   Serial
-                      Pins    Pins
+  │  ┌───────┐   ┌───────┐  ┌───────┐   │
+  │  │  CPU  │   │ Flash │  │ SRAM  │   │
+  │  │Cortex │◄═►│ code  │  │ data  │   │
+  │  │  -M   │   │ 64 KB │  │ 20 KB │   │
+  │  └───┬───┘   └───────┘  └───────┘   │
+  │      │   AHB / APB bus              │
+  │  ════╪═══════════════════════════   │
+  │  ┌───┴──┐ ┌─────┐ ┌────┐ ┌─────┐    │
+  │  │ GPIO │ │Timer│ │ADC │ │SPI  │    │
+  │  │ports │ │ PWM │ │    │ │I2C  │    │
+  │  │      │ │     │ │    │ │UART │    │
+  │  └──┬───┘ └──┬──┘ └─┬──┘ └──┬──┘    │
+  └─────┼────────┼──────┼───────┼───────┘
+     pins     pins   analog   serial
+                      pins    pins
 ```
 
-This diagram shows how every lesson in the course maps to components inside a microcontroller:
+Every topic of this course is a part of it:
 
-| Course Lesson | MCU Component |
+| Topic | Where it is in the MCU |
 |--------------|---------------|
-| Lesson 1: Binary and Hex | Every register value, every address |
-| Lesson 2: Logic Gates | ALU operations, decoder logic, multiplexers |
-| Lesson 3: Combinational Logic | Address decoders, ALU arithmetic, GPIO mux |
-| Lesson 4: Flip-Flops and Registers | CPU register file, SPI shift registers, peripheral registers |
-| Lesson 5: Counters and Timers | Timer peripherals, prescalers, PWM generators |
-| Lesson 6: Memory | Flash (program), SRAM (variables), memory-mapped peripherals |
-| Lesson 7: Buses and Interfaces | AHB/APB internal buses, SPI/I2C/UART peripherals |
-| Lesson 8: ADC and DAC | ADC peripheral, PWM output (pseudo-DAC) |
-| Lesson 9: This Lesson | CPU architecture that ties everything together |
+| Binary and hex | Every register value, every address |
+| Logic gates | ALU operations, decoder logic, multiplexers |
+| Combinational logic | Address decoders, ALU arithmetic, GPIO mux |
+| Flip-flops and registers | CPU register file, SPI shift registers, peripheral registers |
+| Counters and timers | Timer peripherals, prescalers, PWM generators |
+| Memory | Flash (program), SRAM (variables), memory-mapped peripherals |
+| Buses and interfaces | AHB/APB internal buses, SPI/I2C/UART peripherals |
+| ADC and DAC | ADC peripheral, PWM output (pseudo-DAC) |
 
 ## How This Connects to Embedded Programming
 
@@ -576,19 +537,19 @@ This diagram shows how every lesson in the course maps to components inside a mi
 
 <CardGrid>
   <Card title="Understanding Compiler Output" icon="setting">
-    When you look at disassembly output or debug at the assembly level, you now understand what MOV, ADD, STR, LDR, and branch instructions do at the hardware level. This makes debugging HardFaults and optimization much more approachable.
+    When the debugger shows assembly, you can read it: MOV, ADD, STR, LDR and the branch instructions each move a value between registers, the ALU and memory. A fault handler reports the PC and the SP, and you now know what both mean.
   </Card>
 
   <Card title="Writing Efficient Code" icon="rocket">
-    Knowing that branch mispredictions flush the pipeline (2 wasted cycles on Cortex-M3) helps you understand why lookup tables can be faster than switch statements, and why small inline functions can outperform function calls.
+    A taken branch flushes the pipeline (2 wasted cycles on Cortex-M3), and a function call saves and restores registers on the stack. This is why a lookup table can be faster than a long chain of `if` statements.
   </Card>
 
   <Card title="Interrupt Design" icon="open-book">
-    Understanding the hardware context save (12 cycles), vector table lookup, and priority arbitration helps you write interrupt handlers that are fast and predictable. Keep handlers short. Do not call complex functions from ISRs.
+    Every interrupt costs the context save (12 cycles) and the restore, and while a handler runs, interrupts of the same or lower priority wait. Keep handlers short.
   </Card>
 
   <Card title="Memory Layout" icon="approve-check">
-    Knowing that Flash holds code and SRAM holds variables lets you interpret linker scripts, understand `.text`, `.data`, `.bss`, and `.stack` sections, and diagnose memory-related bugs (stack overflow, uninitialized data, Flash write issues).
+    Flash holds code and SRAM holds variables. A linker script places the sections of your program in them: `.text` (code) in Flash, `.data` and `.bss` (variables) and the stack in SRAM.
   </Card>
 </CardGrid>
 
@@ -597,22 +558,10 @@ This diagram shows how every lesson in the course maps to components inside a mi
 <InArticleAd />
 
 
-You have now covered the complete digital foundation underlying every microcontroller:
-
-1. **Binary and hex** are the language of hardware registers
-2. **Logic gates** perform the Boolean operations your code compiles to
-3. **Combinational circuits** route and decode signals
-4. **Flip-flops and registers** store state
-5. **Counters** keep time and generate waveforms
-6. **Memory** stores your code and data
-7. **Buses** move information between CPU, memory, and peripherals
-8. **ADCs and DACs** bridge the analog and digital worlds
-9. **The CPU** orchestrates everything through fetch, decode, execute
-
-Every embedded programming course you take from here will build on this foundation. When you configure a timer, you know it is a counter with a prescaler. When you set up SPI, you know it is a pair of shift registers. When you write to a GPIO register, you know the data travels through address decoders and bus arbiters to reach a latch that drives a physical pin.
+The course ends here, with the CPU that uses every earlier part through fetch, decode and execute. When you configure a timer, you know it is a counter with a prescaler. When you set up SPI, you know it is a pair of shift registers. When you write to a GPIO register, you know the data passes an address decoder and reaches flip-flops that drive a physical pin.
 
 :::tip[What to do next]
-Jump into any of our embedded programming courses. Start with [Embedded Programming: ATmega328P](/education/embedded-programming-atmega328p/) for 8-bit AVR, or go directly to [Embedded Programming: STM32](/education/embedded-programming-stm32/) for 32-bit ARM Cortex-M. Come back to these digital electronics lessons whenever you want a deeper understanding of the hardware behind your code.
+Continue with one of our embedded programming courses. Start with [Embedded Programming: ATmega328P](/education/embedded-programming-atmega328p/) for 8-bit AVR, or go directly to [Embedded Programming: STM32](/education/embedded-programming-stm32/) for 32-bit ARM Cortex-M. Come back to these digital electronics lessons whenever you want a deeper understanding of the hardware behind your code.
 :::
 
 <DigitalElectronicsComments />

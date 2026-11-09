@@ -25,17 +25,17 @@ import { Card, CardGrid, Badge, Steps, LinkButton, FileTree } from '@astrojs/sta
 
 import DigitalElectronicsComments from '../../../../components/digital-electronics/DigitalElectronicsComments.astro';
 
-A microcontroller has one data bus but dozens of peripherals. How does it route data to the right one? It uses a multiplexer. How does it select one memory chip out of eight? It uses an address decoder. How does its ALU add two numbers? It chains full adders. These are all combinational circuits: blocks of logic gates whose output depends only on the current inputs, with no memory of previous states. In this lesson you will build multiplexers, decoders, encoders, and adders on a breadboard, then see how the same circuits appear inside every processor you program. #CombinatorialLogic #Multiplexers #BinaryAdders
+You set a pin to "serial transmit" and nothing comes out, or a sum comes out as 14 where you expected 30. Both faults are explained by a few small circuits inside the chip. A multiplexer chooses which signal reaches a pin. A decoder switches on one device out of eight. A chain of adders does the arithmetic and drops what does not fit. In this lesson you build these circuits from gates on a breadboard, then find the same circuits inside the processor you program. #CombinatorialLogic #Multiplexers #BinaryAdders
 
 ## What Is Combinational Logic?
 
-A combinational circuit has:
+A combinational circuit is a block of gates with:
 
-- **No memory:** the output is determined entirely by the current inputs
+- **No memory:** the output depends only on the inputs at this moment
 - **No clock:** the output changes whenever an input changes (after a small propagation delay)
-- **A defined function:** for every possible combination of inputs, there is exactly one output
+- **A defined function:** every combination of inputs gives exactly one output
 
-Compare this with sequential circuits (Lesson 4), which have memory and depend on both current inputs and past states.
+Sequential circuits, which come next in this course, add memory: their output also depends on what happened before.
 
 ## Multiplexers (MUX)
 
@@ -44,7 +44,7 @@ Compare this with sequential circuits (Lesson 4), which have memory and depend o
 
 ### Concept
 
-A multiplexer selects one of several input signals and forwards it to a single output. Think of it as a digitally controlled switch. The selection is controlled by "select" lines.
+A multiplexer (mux) selects one of several input signals and passes it to a single output. Think of the input selector on an amplifier: several sources, one output, and a knob that chooses. Here the knob is a binary number on the "select" lines.
 
 A 2-to-1 multiplexer has:
 - 2 data inputs ($D_0$, $D_1$)
@@ -60,7 +60,7 @@ A 2-to-1 multiplexer has:
 
 **Boolean expression:** $Y = \overline{S} \cdot D_0 + S \cdot D_1$
 
-This is built from two AND gates, one NOT gate, and one OR gate.
+Each AND gate lets its data input through only when the select line agrees. It takes two AND gates, one NOT gate, and one OR gate.
 
 ### 4-to-1 Multiplexer
 
@@ -97,7 +97,7 @@ Each term is a 3-input AND gate. The four AND outputs feed into a 4-input OR gat
 
 ### General Pattern
 
-An $n$-to-1 multiplexer needs $\lceil \log_2 n \rceil$ select lines. Common sizes:
+Each added select line doubles the number of inputs you can choose from, so $k$ select lines choose among $2^k$ inputs. An $n$-to-1 multiplexer needs $\lceil \log_2 n \rceil$ select lines: the power of two that reaches $n$, rounded up. Common sizes:
 
 | Multiplexer | Data Inputs | Select Lines |
 |-------------|-------------|-------------|
@@ -108,18 +108,18 @@ An $n$-to-1 multiplexer needs $\lceil \log_2 n \rceil$ select lines. Common size
 
 ### Where Multiplexers Appear in MCUs
 
-Inside your microcontroller, multiplexers are everywhere:
+When you write a "select" value to a register of a microcontroller (MCU), you are usually setting the select lines of a multiplexer:
 
-- **GPIO alternate function selection:** Each GPIO pin can serve multiple functions (UART TX, SPI MOSI, timer output). A multiplexer controlled by configuration register bits selects which function reaches the pin.
-- **Clock source selection:** The RCC module uses multiplexers to choose between HSI, HSE, and PLL as the system clock source.
-- **ADC channel selection:** When you select which analog channel to convert, you are programming a multiplexer.
+- **Pin function:** One GPIO pin can carry several signals (a serial transmit line, a timer output). Register bits drive a multiplexer that decides which signal reaches the pin.
+- **Clock source:** A multiplexer chooses the system clock from the internal oscillator, an external crystal, or the PLL, a circuit that multiplies a clock to a higher frequency.
+- **ADC channel:** When you choose which analog input to convert, you set a multiplexer.
 
 ## Demultiplexers (DEMUX)
 
 <InArticleAd />
 
 
-A demultiplexer does the opposite of a multiplexer: it takes one input and routes it to one of several outputs based on the select lines.
+A demultiplexer does the opposite: it sends one input to one of several outputs, chosen by the select lines.
 
 ### 1-to-4 Demultiplexer
 
@@ -130,9 +130,7 @@ A demultiplexer does the opposite of a multiplexer: it takes one input and route
 | 1 | 0 | 0 | 0 | D | 0 |
 | 1 | 1 | 0 | 0 | 0 | D |
 
-Where $D$ is the input data. Only one output is active at a time; the others are held at 0.
-
-**In embedded systems:** DMA channel routing uses demultiplexer-like logic to direct data from one source to one of several destinations.
+Here $D$ is the input data. Only the selected output carries it. The others are held at 0.
 
 ## Decoders
 
@@ -141,7 +139,7 @@ Where $D$ is the input data. Only one output is active at a time; the others are
 
 ### Concept
 
-A decoder converts a binary code into individual output lines. Only one output is active at a time. A decoder is essentially a demultiplexer with the data input permanently set to 1.
+A processor names a device with a binary number, but each device has its own enable wire. A decoder turns the number into one active wire: for each input code, exactly one output is active. It is a demultiplexer with the data input fixed at 1.
 
 ### 2-to-4 Decoder
 
@@ -180,7 +178,7 @@ Each output is one AND gate. The decoder is four AND gates plus two inverters.
 
 ### Address Decoding in Memory Systems
 
-This is one of the most important applications of decoders. When a microcontroller accesses memory, the upper address bits pass through a decoder to determine which memory chip or peripheral responds:
+All memory chips and peripherals share the same address wires, but only one may answer at a time. So the upper address bits go to a decoder, and each decoder output drives the chip select (CS) input of one device:
 
 ```text
   Address decoding with a 3-to-8 decoder
@@ -207,7 +205,7 @@ This is one of the most important applications of decoders. When a microcontroll
 | 0x4000-0x5FFF | $Y_2$ | Peripheral block 1 |
 | 0x6000-0x7FFF | $Y_3$ | Peripheral block 2 |
 
-The three highest address bits (A15, A14, A13) select which device is enabled. The remaining 13 bits address locations within that device, giving each device an 8 KB address range.
+The three highest address bits (A15, A14, A13) select the device. For example, address `0x2004` is `0010 0000 0000 0100`: its top three bits are 001, so $Y_1$ is active and the SRAM answers. The other 13 bits choose a location inside the device, so each device has $2^{13} = 8192$ locations (8 KB).
 
 ## Encoders
 
@@ -216,11 +214,11 @@ The three highest address bits (A15, A14, A13) select which device is enabled. T
 
 ### Concept
 
-An encoder is the reverse of a decoder. It has multiple input lines (only one should be active at a time) and produces a binary code representing which input is active.
+An encoder is the reverse of a decoder. It has several input lines, of which one should be active, and it outputs the number of the active line as a binary code.
 
 ### 4-to-2 Priority Encoder
 
-A priority encoder handles the case where multiple inputs might be active simultaneously by giving priority to the highest-numbered input.
+Two inputs can be active at the same time: two keys pressed, two devices asking for attention. A priority encoder then reports the highest-numbered active input and ignores the rest.
 
 | $D_3$ | $D_2$ | $D_1$ | $D_0$ | $A_1$ | $A_0$ | Valid |
 |-------|-------|-------|-------|-------|-------|-------|
@@ -230,9 +228,9 @@ A priority encoder handles the case where multiple inputs might be active simult
 | 0 | 1 | X | X | 1 | 0 | 1 |
 | 1 | X | X | X | 1 | 1 | 1 |
 
-The "X" entries mean "don't care." If $D_3$ is active, the output is 11 regardless of what $D_2$, $D_1$, or $D_0$ are doing.
+An "X" means "don't care": the value has no effect. If $D_3$ is active, the output is 11 whatever $D_2$, $D_1$ and $D_0$ are. The Valid output tells a real code 00 apart from "no input active".
 
-**In embedded systems:** The NVIC (Nested Vectored Interrupt Controller) in ARM Cortex-M microcontrollers uses priority encoding to determine which interrupt to service when multiple interrupts are pending simultaneously.
+**In embedded systems:** An interrupt is a signal that asks the processor to stop and handle an event. When several are waiting, the interrupt controller of an ARM Cortex-M (the NVIC) uses priority encoding to choose which to handle first.
 
 ## Half Adder
 
@@ -241,7 +239,7 @@ The "X" entries mean "don't care." If $D_3$ is active, the output is 11 regardle
 
 ### Concept
 
-A half adder adds two single-bit numbers and produces a sum and a carry:
+In binary, 1 + 1 = 10: the sum digit is 0 and a 1 is carried to the next column, as in decimal 5 + 5. A half adder adds two single bits and gives these two results, the sum and the carry:
 
 | A | B | Sum | Carry |
 |---|---|-----|-------|
@@ -254,7 +252,7 @@ Look at the truth tables:
 - **Sum** matches the XOR truth table: $Sum = A \oplus B$
 - **Carry** matches the AND truth table: $Carry = A \cdot B$
 
-A half adder is just one XOR gate and one AND gate. It is called "half" because it cannot handle a carry input from a previous stage.
+A half adder is one XOR gate and one AND gate. It is called "half" because it has no input for a carry that arrives from the column to its right.
 
 ## Full Adder
 
@@ -263,7 +261,7 @@ A half adder is just one XOR gate and one AND gate. It is called "half" because 
 
 ### Concept
 
-A full adder adds two bits plus a carry-in from the previous stage, producing a sum and a carry-out:
+Every column except the first must add three bits: A, B and the carry from the column to its right. A full adder does this. It adds two bits plus a carry-in and gives a sum and a carry-out:
 
 ```text
   Full Adder Block Diagram
@@ -299,26 +297,11 @@ $$Sum = A \oplus B \oplus C_{in}$$
 
 $$C_{out} = AB + C_{in}(A \oplus B)$$
 
-A full adder is built from two half adders and one OR gate, or equivalently from two XOR gates, two AND gates, and one OR gate.
+In words: the sum is 1 when an odd number of the three inputs is 1, and the carry-out is 1 when at least two of them are 1. A full adder is built from two half adders and one OR gate, which is two XOR gates, two AND gates, and one OR gate.
 
 ### Ripple Carry Adder
 
-Chain $n$ full adders together to add two $n$-bit numbers. The carry-out of each stage connects to the carry-in of the next:
-
-```
-       A3 B3      A2 B2      A1 B1      A0 B0
-        | |        | |        | |        | |
-      [Full]     [Full]     [Full]     [Full]
-      Adder 3    Adder 2    Adder 1    Adder 0
-        |          |          |          |
-  C4←──Cout  C3←──Cout  C2←──Cout  C1←──Cout←── C0 (0)
-        |          |          |          |
-        S3         S2         S1         S0
-```
-
-The 4-bit ripple carry adder adds two 4-bit numbers (A3..A0 + B3..B0) and produces a 4-bit sum (S3..S0) plus a carry-out (C4).
-
-The "ripple" refers to how the carry propagates through each stage sequentially. The worst case delay is $4 \times t_{gate}$ for the carry to ripple from the least significant bit to the most significant bit. This is simple but slow for large numbers. Modern CPUs use carry-lookahead adders for faster addition.
+Chain $n$ full adders to add two $n$-bit numbers, as you add by hand: column by column from the right, passing each carry to the left. The carry-out of each stage connects to the carry-in of the next. The 4-bit ripple carry adder below adds A3..A0 and B3..B0 and gives a 4-bit sum (S3..S0) plus a carry-out (C4):
 
 ```text
   4-bit ripple carry adder
@@ -334,6 +317,10 @@ The "ripple" refers to how the carry propagates through each stage sequentially.
  (overflow)
 ```
 
+The name "ripple" describes how the carry travels through the stages one after another. In the worst case the carry must pass from the least significant bit to the most significant bit, which takes about $4 \times t_{carry}$. Here $t_{carry}$ is the carry delay of one full adder: about two gate delays, through its AND and OR gates.
+
+The circuit is simple but slow for wide numbers. Modern processors use carry-lookahead adders, which work out the carries in parallel.
+
 ## Practical: Build a 4-to-1 Multiplexer from Gates
 
 <InArticleAd />
@@ -348,6 +335,7 @@ The "ripple" refers to how the carry propagates through each stage sequentially.
 | 74HC04 (hex inverter) | 1 |
 | LEDs | 1 |
 | 220 ohm resistors | 1 |
+| 10K ohm resistors | 6 |
 | DIP switches (4-position) | 1 |
 | Push buttons | 2 |
 | Breadboard, jumper wires, 5V supply | 1 set |
@@ -355,7 +343,7 @@ The "ripple" refers to how the carry propagates through each stage sequentially.
 ### Circuit Description
 
 <Steps>
-1. **Set up four data inputs ($D_0$ through $D_3$)** using four DIP switch positions. Each switch connects to 5V (logic 1) or is pulled to GND (logic 0) through a 10K resistor.
+1. **Set up four data inputs ($D_0$ through $D_3$)** using the DIP switch, a small block of four slide switches. Each switch connects its input to 5V (logic 1) when on. A 10K resistor from the input to GND holds it at logic 0 when the switch is off.
 
 2. **Set up two select inputs ($S_0$, $S_1$)** using two push buttons with pull-down resistors.
 
@@ -388,6 +376,7 @@ The "ripple" refers to how the carry propagates through each stage sequentially.
 | 74HC32 (quad OR) | 1 |
 | LEDs | 3 |
 | 220 ohm resistors | 3 |
+| 10K ohm resistors | 4 |
 | DIP switches (4-position) | 1 |
 | Breadboard, jumper wires, 5V supply | 1 set |
 
@@ -461,7 +450,7 @@ What is the maximum sum a 4-bit ripple carry adder can produce? What happens if 
 <details>
 <summary>**Solution**</summary>
 
-The maximum 4-bit sum is $15 + 15 = 30$. In binary: $S_3 S_2 S_1 S_0 = 1110$ with $C_{out} = 1$. The full result is 5 bits: $11110 = 30$. The carry-out serves as the fifth bit. If you only look at the 4-bit sum (1110 = 14), you get the wrong answer. This is what "overflow" means: the result does not fit in the output width.
+The maximum 4-bit sum is $15 + 15 = 30$. In binary: $S_3 S_2 S_1 S_0 = 1110$ with $C_{out} = 1$. The full result is 5 bits: $11110_2 = 30$. The carry-out serves as the fifth bit. If you only look at the 4-bit sum ($1110_2 = 14$), you get the wrong answer. This is what "overflow" means: the result does not fit in the output width.
 
 </details>
 
@@ -472,19 +461,19 @@ The maximum 4-bit sum is $15 + 15 = 30$. In binary: $S_3 S_2 S_1 S_0 = 1110$ wit
 
 <CardGrid>
   <Card title="Address Decoding" icon="setting">
-    When your MCU accesses address `0x40021000`, internal decoders determine that this address maps to the RCC peripheral. The upper address bits pass through decoder logic that enables the correct peripheral block and disables all others.
+    When your MCU accesses address `0x40021000`, decoders inside the chip read the upper address bits, enable the one peripheral block that owns this address (on an STM32F1, the clock control block), and disable all others.
   </Card>
 
   <Card title="GPIO Alternate Functions" icon="open-book">
-    Each GPIO pin has a multiplexer that selects between regular GPIO, UART, SPI, I2C, timer, and other functions. When you call `GPIO_PinAFConfig()` or set alternate function bits, you are programming this multiplexer.
+    Each GPIO pin has a multiplexer that selects between plain GPIO and the serial, timer and other functions. When you call `GPIO_PinAFConfig()` or set alternate function bits, you set this multiplexer.
   </Card>
 
   <Card title="The ALU Inside Your MCU" icon="rocket">
-    The Arithmetic Logic Unit that executes your `+`, `-`, `&`, `|`, `^` operations is built from adders, multiplexers, and logic gates exactly like the ones in this lesson, just 32 bits wide and with carry-lookahead for speed.
+    The arithmetic logic unit (ALU) that executes your `+`, `-`, `&`, `|`, `^` is built from the adders, multiplexers and gates of this lesson, 32 bits wide and with carry-lookahead for speed.
   </Card>
 
   <Card title="Interrupt Priority" icon="approve-check">
-    The NVIC uses priority encoding to decide which interrupt to service. When multiple interrupts fire simultaneously, priority encoder logic selects the highest-priority pending interrupt, similar to the priority encoder discussed earlier.
+    When several interrupts arrive together, priority encoder logic in the NVIC selects the waiting interrupt with the highest priority.
   </Card>
 </CardGrid>
 
@@ -496,13 +485,11 @@ The maximum 4-bit sum is $15 + 15 = 30$. In binary: $S_3 S_2 S_1 S_0 = 1110$ wit
 | Circuit | Function | Key Application |
 |---------|----------|----------------|
 | Multiplexer | Select one of N inputs | Clock source selection, GPIO mux |
-| Demultiplexer | Route one input to one of N outputs | DMA routing, data distribution |
+| Demultiplexer | Route one input to one of N outputs | Data distribution |
 | Decoder | Binary code to individual lines | Address decoding, chip select |
 | Encoder | Individual lines to binary code | Interrupt priority, keyboard scanning |
 | Half adder | Add two bits | Building block for full adder |
 | Full adder | Add two bits plus carry | ALU arithmetic, ripple carry chains |
-
-In the next lesson, you will add memory to your circuits. Flip-flops and latches store state, turning combinational logic into sequential circuits that can remember, count, and shift data.
 
 <DigitalElectronicsComments />
 

@@ -25,24 +25,24 @@ import { Card, CardGrid, Badge, Steps, LinkButton, FileTree } from '@astrojs/sta
 
 import DigitalElectronicsComments from '../../../../components/digital-electronics/DigitalElectronicsComments.astro';
 
-The physical world is analog: temperature varies continuously, light intensity has infinite gradations, and sound is a smooth pressure wave. But your microcontroller processes discrete digital numbers. ADCs (Analog-to-Digital Converters) translate the analog world into numbers your code can work with, and DACs (Digital-to-Analog Converters) translate numbers back into analog voltages. Understanding how these conversions work helps you choose the right resolution, sample rate, and filtering for your application. #ADC #DAC #SignalConversion
+A tank level reading changes by three counts when nothing has moved. A vibration log shows a slow wave that no machine makes. A pressure sensor changes by half a millivolt and the reading does not change at all. None of these is a fault in your code. They come from the way a voltage becomes a number. An ADC (analog-to-digital converter) turns a voltage into a number, and a DAC (digital-to-analog converter) does the opposite. This lesson shows how both work, so that you can choose the resolution, the sample rate and the filter your measurement needs. #ADC #DAC #SignalConversion
 
 ## ADC Fundamentals
 
 ### What an ADC Does
 
-An ADC takes a continuous analog voltage and produces a discrete digital number that represents that voltage. The process involves two steps:
+An analog voltage can have any value. A digital number is one of a fixed set. An ADC measures a voltage as you measure a length with a ruler marked only in millimetres: you read a mark, and what lies between two marks is lost. It works in two steps:
 
-1. **Sampling:** capturing the analog voltage at a specific instant in time
-2. **Quantization:** mapping the captured voltage to the nearest digital value
+1. **Sampling:** it captures the voltage at one instant.
+2. **Quantization:** it replaces the captured voltage by one of its fixed levels.
 
 ### Resolution
 
-Resolution is the number of bits in the ADC's output. It determines how finely the analog range is divided.
+Resolution is the number of bits in the ADC's output. With $n$ bits there are $2^n$ levels, the marks on the ruler.
 
 | ADC Resolution | Number of Levels | Typical MCU |
 |----------------|-----------------|-------------|
-| 8-bit | 256 | ATmega328P (10-bit available) |
+| 8-bit | 256 | ATmega328P, when only the top 8 bits are read |
 | 10-bit | 1,024 | ATmega328P |
 | 12-bit | 4,096 | STM32F103, STM32F4, ESP32 |
 | 16-bit | 65,536 | Some STM32H7 variants, external ADCs |
@@ -50,21 +50,23 @@ Resolution is the number of bits in the ADC's output. It determines how finely t
 
 ### Least Significant Bit (LSB) Voltage
 
-The LSB voltage is the smallest voltage change the ADC can detect:
+The ADC divides the range from 0 V to its reference voltage $V_{ref}$ into $2^n$ equal steps, where $n$ is the resolution in bits. The size of one step is the LSB voltage, the distance between two marks on the ruler. (When the input rises by one step, the least significant bit of the output changes.)
 
 $$V_{LSB} = \frac{V_{ref}}{2^n}$$
-
-where $V_{ref}$ is the reference voltage and $n$ is the resolution in bits.
 
 **Example:** A 12-bit ADC with $V_{ref} = 3.3\text{V}$:
 
 $$V_{LSB} = \frac{3.3}{2^{12}} = \frac{3.3}{4096} \approx 0.806 \text{ mV}$$
 
-This ADC can distinguish voltage changes as small as 0.8 mV. Any change smaller than this is lost in quantization.
+A change smaller than 0.8 mV can stay inside one step, and then the reading does not change.
+
+:::note[4096 or 4095?]
+A 12-bit ADC has 4096 steps, so the step is $V_{ref} / 4096$. The codes are numbered from 0, so the largest code is 4095. It means $4095 \times 3.3 / 4096 = 3.2992\text{V}$, one step below $V_{ref}$. To convert a code to a voltage, divide by 4096.
+:::
 
 ### ADC Transfer Function
 
-The ADC produces a digital code based on the input voltage:
+The output code is the input as a fraction of $V_{ref}$, multiplied by the number of steps and rounded down (the brackets $\lfloor \; \rfloor$ mean "round down"):
 
 $$\text{Digital Code} = \left\lfloor \frac{V_{in}}{V_{ref}} \times 2^n \right\rfloor$$
 
@@ -86,25 +88,26 @@ float voltage = (float)adc_value * 3.3f / 4096.0f;
 
 ### Quantization Error
 
-Because the ADC maps a continuous voltage to discrete levels, there is always a rounding error called quantization error. The maximum quantization error is $\pm \frac{1}{2}$ LSB.
+The input can be anywhere inside a step, but the code names only the step. The difference is the quantization error. When each code is taken to mean the middle of its step, the error is at most $\pm \frac{1}{2}$ LSB.
 
 For a 12-bit ADC with 3.3V reference:
 
 $$\text{Max quantization error} = \pm \frac{V_{LSB}}{2} = \pm 0.403 \text{ mV}$$
 
-This is an inherent limitation. No amount of software can recover the information lost in quantization. If you need finer resolution, you need a higher-resolution ADC.
+One reading cannot show anything finer. For smaller steps you need an ADC with more bits.
 
 ### Other ADC Error Sources
 
+A real ADC adds more errors, usually larger ones:
+
 | Error | Description | Typical Magnitude |
 |-------|-------------|-------------------|
-| Offset error | Output is non-zero when input is 0V | 1-2 LSB |
-| Gain error | Slope of transfer function deviates from ideal | 1-5 LSB |
-| INL (Integral Nonlinearity) | Deviation of actual transfer function from ideal straight line | 1-3 LSB |
-| DNL (Differential Nonlinearity) | Variation in step size between adjacent codes | 0.5-1 LSB |
+| Offset error | Output is not zero when input is 0V | 1-2 LSB |
+| Gain error | Every reading is wrong by the same percentage | 1-5 LSB |
+| Nonlinearity (INL, DNL) | Some steps are wider than others | 0.5-3 LSB |
 | Noise | Random variation in readings | 1-3 LSB (depends on layout, decoupling) |
 
-For most embedded applications, the dominant error is noise. Good PCB layout, proper decoupling capacitors, and software averaging significantly improve ADC accuracy.
+In most embedded work the largest error is noise. A capacitor close to the supply pin of the ADC (decoupling) and averaging in software both reduce it.
 
 ## Successive Approximation ADC (SAR)
 
@@ -113,17 +116,16 @@ For most embedded applications, the dominant error is noise. Good PCB layout, pr
 
 ### How It Works
 
-The SAR ADC is the most common type in microcontrollers. It uses a binary search algorithm to find the digital code closest to the input voltage.
+The SAR ADC is the most common type in microcontrollers. It works like a balance with weights of 8, 4, 2 and 1. You try the largest weight first. If it is too heavy you remove it, if not you keep it, and you try the next one. Four tries give the answer. This is a binary search.
 
-**Components:**
-- A DAC (internal)
-- A comparator
-- A SAR register (shift register with control logic)
-- A sample-and-hold circuit
+In the ADC the parts are:
+
+- a sample-and-hold circuit (S/H), which keeps the input steady during the search
+- an internal DAC, which makes the trial voltage (the weights)
+- a comparator, which says which of two voltages is higher (the balance)
+- the SAR (successive approximation register), which holds the bits decided so far
 
 ```text
-  SAR ADC block diagram
-
   Vin ──→[S/H]──→(+)─┐
                       │ Comparator
   Vref ──→[DAC]──→(-)─┘
@@ -136,9 +138,6 @@ The SAR ADC is the most common type in microcontrollers. It uses a binary search
                           │
                      Digital Output
                       (n-bit code)
-
-  S/H = sample and hold
-  SAR = successive approximation register
 ```
 
 **Process for a 4-bit SAR ADC (simplified):**
@@ -146,15 +145,11 @@ The SAR ADC is the most common type in microcontrollers. It uses a binary search
 <Steps>
 1. **Sample and hold:** The input voltage is captured and held steady on a capacitor.
 
-2. **Bit 3 (MSB) test:** Set the DAC to 1000 (half of full scale). Compare: is the input greater than the DAC output? If yes, keep bit 3 as 1. If no, set bit 3 to 0.
+2. **Bit 3 test:** Bit 3 is the most significant bit (MSB). Set the DAC to 1000 (half of full scale). Is the input greater than the DAC output? If yes, keep bit 3 as 1. If no, set bit 3 to 0.
 
-3. **Bit 2 test:** Set the DAC to the current result + 0100 (quarter scale). Compare and keep or clear bit 2.
+3. **Bits 2, 1 and 0:** For each bit in turn, set it to 1 on top of the result so far (adding 0100, then 0010, then 0001), compare, and keep or clear it.
 
-4. **Bit 1 test:** Set the DAC to the current result + 0010. Compare and keep or clear bit 1.
-
-5. **Bit 0 (LSB) test:** Set the DAC to the current result + 0001. Compare and keep or clear bit 0.
-
-6. **Result:** The 4-bit code in the SAR register is the closest digital representation of the input voltage.
+4. **Result:** The 4-bit code in the SAR is the highest code whose voltage is below the input.
 </Steps>
 
 **Example: Converting 2.1V with a 4-bit ADC, 3.3V reference**
@@ -170,14 +165,9 @@ Result: 1010 (decimal 10). Voltage: $10 \times 3.3 / 16 = 2.0625\text{V}$. The e
 
 ### Why SAR Is Popular in MCUs
 
-A 12-bit SAR ADC needs exactly 12 comparison cycles to produce a result. At a typical 14 MHz ADC clock (STM32F103), each conversion takes about 1 microsecond. This is fast enough for most sensor applications while using relatively little silicon area and power.
+A 12-bit SAR ADC needs exactly 12 comparisons for one result. At a 14 MHz ADC clock (STM32F103), one conversion takes about 1 microsecond. That is fast enough for most sensors, and the circuit is small and uses little power.
 
-| ADC Type | Speed | Resolution | Power | Used In |
-|----------|-------|-----------|-------|---------|
-| SAR | Medium (1-5 MSPS) | 8-18 bits | Low | Most MCUs (STM32, ATmega, ESP32) |
-| Delta-Sigma | Slow (10-1000 SPS) | 16-24 bits | Low | Precision measurement, audio |
-| Flash | Very fast (100+ MSPS) | 4-8 bits | High | Video, radar, oscilloscopes |
-| Pipeline | Fast (10-100 MSPS) | 10-16 bits | Medium | Communications, imaging |
+Other types trade speed for bits: a delta-sigma ADC gives 16 to 24 bits at only 10 to 1000 samples per second.
 
 ## Sampling and the Nyquist Theorem
 
@@ -186,30 +176,30 @@ A 12-bit SAR ADC needs exactly 12 comparison cycles to produce a result. At a ty
 
 ### The Sampling Theorem
 
-The Nyquist-Shannon sampling theorem states:
+An ADC sees the signal only at the instants when it samples, so the samples must come often enough. The Nyquist-Shannon sampling theorem states how often:
 
 > To accurately reconstruct a signal, you must sample at a rate at least **twice** the highest frequency present in the signal.
 
 $$f_{sample} \geq 2 \times f_{max}$$
 
-The minimum sampling rate ($2 \times f_{max}$) is called the Nyquist rate.
+Both frequencies are in hertz. The limit $2 \times f_{max}$ is called the Nyquist rate.
 
 ### Why This Matters
 
-If you sample too slowly, high-frequency components in the signal fold back as lower frequencies, a phenomenon called **aliasing**. The aliased signal looks real but is an artifact of insufficient sampling.
+If you sample too slowly, the samples do not show nothing. They show a slower signal that is not there. This is **aliasing**. In a film, a turning wheel can seem to turn slowly backwards for the same reason: the camera takes too few pictures for each turn.
 
 **Example:** You are measuring a 50 Hz power line signal.
 
-- Sampling at 200 Hz: well above Nyquist (2 x 50 = 100 Hz). Signal reconstructed accurately.
-- Sampling at 80 Hz: below Nyquist. The 50 Hz signal aliases to appear as a 30 Hz signal (|80 - 50| = 30 Hz). Your measurement shows a wrong frequency.
+- Sampling at 200 Hz: well above the Nyquist rate ($2 \times 50 = 100$ Hz). The samples follow the signal.
+- Sampling at 80 Hz: below the Nyquist rate. The samples trace a 30 Hz signal ($|80 - 50| = 30$ Hz). Your measurement shows a wrong frequency, and nothing in the data tells you so.
 
 ### Anti-Aliasing Filter
 
-Before the ADC, an analog low-pass filter removes frequencies above $f_{sample}/2$. This prevents aliasing. A simple RC filter works for many embedded applications:
+Software cannot remove an alias afterwards, so the high frequencies must be reduced before the ADC. A low-pass filter, which passes slow signals and weakens fast ones, does this. Its cutoff frequency is set below $f_{sample}/2$. A resistor $R$ (in ohms) and a capacitor $C$ (in farads) are often enough:
 
 $$f_{cutoff} = \frac{1}{2\pi RC}$$
 
-**Example:** For a 1 kHz ADC sample rate, the anti-aliasing filter should cut off below 500 Hz. With a 10K resistor: $C = \frac{1}{2\pi \times 10000 \times 500} \approx 32 \text{ nF}$. A 33 nF capacitor would work.
+**Example:** For a 1 kHz ADC sample rate, the anti-aliasing filter should cut off below 500 Hz. With a 10K resistor: $C = \frac{1}{2\pi \times 10000 \times 500} \approx 32 \text{ nF}$. A 33 nF capacitor would work. The filter weakens signals above the cutoff gradually, so place the cutoff as low as your signal allows.
 
 ### Practical Sampling Rates
 
@@ -227,19 +217,15 @@ $$f_{cutoff} = \frac{1}{2\pi RC}$$
 
 ### What a DAC Does
 
-A DAC takes a digital number and produces a proportional analog voltage:
+A DAC takes a number and produces a voltage in proportion to it, one step of $V_{ref} / 2^n$ for each count:
 
 $$V_{out} = \frac{\text{Code}}{2^n} \times V_{ref}$$
 
 ### R-2R Ladder DAC
 
-The simplest DAC architecture uses only two resistor values: R and 2R. This makes it inexpensive and easy to build from discrete components.
-
-**4-bit R-2R ladder:**
+Each bit of the code must add its own share of voltage: the top bit a half of $V_{ref}$, the next bit a quarter, and so on. The R-2R ladder does this with only two resistor values, R and 2R, so it is cheap and easy to build.
 
 ```text
-  R-2R ladder DAC (4-bit)
-
   D3       D2       D1       D0
   │        │        │        │
  [2R]     [2R]     [2R]     [2R]
@@ -254,9 +240,7 @@ The simplest DAC architecture uses only two resistor values: R and 2R. This make
   D0 contributes Vref/16
 ```
 
-Each digital input (D0-D3) connects to either VCC (for a 1) or GND (for a 0). The resistor network creates a weighted sum of the inputs. D3 (MSB) contributes twice as much voltage as D2, which contributes twice as much as D1, and so on.
-
-**How it works conceptually:**
+Each digital input (D0-D3) is connected to $V_{ref}$ (for a 1) or to GND (for a 0). At each joint of the ladder the voltage from the bits further right is divided by two. So D3 (MSB) adds twice as much voltage as D2, which adds twice as much as D1:
 
 $$V_{out} = V_{ref} \times \left(\frac{D_3}{2} + \frac{D_2}{4} + \frac{D_1}{8} + \frac{D_0}{16}\right)$$
 
@@ -266,14 +250,7 @@ $$V_{out} = 3.3 \times \left(\frac{1}{2} + \frac{0}{4} + \frac{1}{8} + \frac{0}{
 
 ### DACs in Microcontrollers
 
-Not all MCUs have a built-in DAC. The STM32F103 does not have one, but the STM32F4 and STM32F7 families have 12-bit DACs. The ESP32 has two 8-bit DACs.
-
-| MCU | DAC | Resolution | Channels |
-|-----|-----|-----------|----------|
-| ATmega328P | None | - | - |
-| STM32F103 | None | - | - |
-| STM32F407 | Yes | 12-bit | 2 |
-| ESP32 | Yes | 8-bit | 2 |
+Not all MCUs have a built-in DAC. The ATmega328P and the STM32F103C8 (Blue Pill) have none. The STM32F407 has two 12-bit DACs, and the ESP32 has two 8-bit DACs.
 
 ## PWM as a Pseudo-DAC
 
@@ -282,9 +259,9 @@ Not all MCUs have a built-in DAC. The STM32F103 does not have one, but the STM32
 
 ### Concept
 
-If your MCU does not have a hardware DAC, you can approximate an analog output using PWM (Pulse Width Modulation) combined with a low-pass filter.
+If your MCU has no DAC, PWM (pulse width modulation) with a low-pass filter gives nearly the same result.
 
-A PWM signal switches between 0V and VCC at a fixed frequency. The duty cycle determines the average voltage:
+A PWM signal switches between 0V and the supply voltage VCC at a fixed frequency. The duty cycle is the fraction of each period for which the signal is high ($t_{on}$ out of $t_{period}$). The average voltage follows it:
 
 $$V_{avg} = V_{CC} \times \frac{t_{on}}{t_{period}} = V_{CC} \times \text{duty cycle}$$
 
@@ -298,9 +275,9 @@ $$V_{avg} = V_{CC} \times \frac{t_{on}}{t_{period}} = V_{CC} \times \text{duty c
 
 ### Filtering PWM to Analog
 
-A raw PWM signal is a square wave. To get a smooth analog voltage, pass it through an RC low-pass filter:
+A raw PWM signal is still a square wave. An RC low-pass filter keeps its average and weakens the fast switching. Think of a water tank fed by a tap that opens and closes quickly: the level follows the average flow, not each opening. The filter is one resistor and one capacitor:
 
-```
+```text
 MCU PWM Pin ──[R]──┬──→ Analog Output
                     │
                    [C]
@@ -314,19 +291,19 @@ Choose the filter cutoff frequency well below the PWM frequency:
 - **Filter cutoff:** 200 Hz ($\frac{1}{100}$ of PWM frequency)
 - **Calculation:** $R = 10\text{K}$, $C = \frac{1}{2\pi \times 10000 \times 200} = 80 \text{ nF}$ (use 100 nF)
 
-The lower the cutoff relative to the PWM frequency, the smoother the output, but the slower the response to changes in duty cycle.
+A lower cutoff gives a smoother output, but the output then follows a change of duty cycle more slowly.
 
 ### PWM Resolution
 
-The effective resolution of PWM-as-DAC depends on the timer resolution and frequency:
+A timer makes the PWM by counting its clock, so the high time can change only by one count. The number of duty cycle steps is the timer clock frequency divided by the PWM frequency:
 
 $$\text{PWM steps} = \frac{f_{timer}}{f_{PWM}}$$
 
 **Example:** STM32F103 at 72 MHz, PWM frequency 20 kHz:
 
-$$\text{Steps} = \frac{72,000,000}{20,000} = 3,600 \text{ steps}$$
+$$\text{Steps} = \frac{72{,}000{,}000}{20{,}000} = 3{,}600 \text{ steps}$$
 
-That is about 11.8 bits of resolution ($\log_2 3600 \approx 11.8$), which is comparable to a 12-bit DAC. Increasing the PWM frequency reduces the number of steps (and resolution). Decreasing it gives more steps but requires a slower filter.
+That is about 11.8 bits of resolution ($\log_2 3600 \approx 11.8$), close to a 12-bit DAC. A higher PWM frequency gives fewer steps. A lower one gives more steps but needs a slower filter.
 
 ## Practical Exercises
 
@@ -378,7 +355,7 @@ You are measuring vibration on a motor. The vibration frequency range is 10 Hz t
 
 Nyquist rate: $2 \times 2000 = 4000$ Hz minimum.
 
-In practice, use 3 to 5 times the Nyquist rate for better signal quality: 10 to 20 kHz. A common choice would be 10 kHz.
+In practice, use 2.5 to 5 times the Nyquist rate for better signal quality: 10 to 20 kHz. A common choice would be 10 kHz.
 
 You would also need an anti-aliasing filter with a cutoff around 2 to 3 kHz.
 
@@ -391,7 +368,7 @@ You want to generate a 0 to 3.3V analog signal using PWM on an ATmega328P runnin
 <details>
 <summary>**Solution**</summary>
 
-PWM frequency: $\frac{16,000,000}{256} = 62,500 \text{ Hz} = 62.5 \text{ kHz}$
+PWM frequency: $\frac{16{,}000{,}000}{256} = 62{,}500 \text{ Hz} = 62.5 \text{ kHz}$
 
 Voltage levels: 256 (0 to 255), giving a voltage step of $3.3 / 256 = 12.9 \text{ mV}$.
 
@@ -400,7 +377,7 @@ For filtering, choose a cutoff well below 62.5 kHz. At 625 Hz (1/100 of PWM): $R
 </details>
 
 :::tip[Instrument it]
-Sampling rate is not an abstract exercise when you monitor a machine, it decides which faults you can even see. Nyquist says you must sample at least twice the highest frequency of interest, so catching a bearing fault tone near 5 kHz needs at least 10 kHz, and undersampling does not just blur it, it aliases a real fault into a wrong frequency you will misread. Pick the rate from the fault you are hunting, then an [MCU's ADC](/education/sensor-actuator-interfacing-stm32/) can capture it cleanly and [report what it finds](https://siliconwit.io).
+When you monitor a machine, the sampling rate decides which faults you can see. A bearing fault that makes a tone near 5 kHz needs at least 10 kHz. A slower rate does not only hide the fault. It moves the tone to a wrong frequency, and you read it as something else. Choose the rate from the fault you want to find. Then an [MCU's ADC](/education/sensor-actuator-interfacing-stm32/) can capture it and [report what it finds](https://siliconwit.io).
 :::
 
 ## How This Connects to Embedded Programming
@@ -409,20 +386,16 @@ Sampling rate is not an abstract exercise when you monitor a machine, it decides
 
 
 <CardGrid>
-  <Card title="Sensor Reading" icon="setting">
-    Every analog sensor (temperature, light, pressure, current) connects to an ADC input. When you call `analogRead()` on Arduino or `HAL_ADC_GetValue()` on STM32, the SAR ADC runs through its binary search, and you get a digital code. Knowing the reference voltage and resolution lets you convert that code to engineering units.
-  </Card>
-
   <Card title="Oversampling and Averaging" icon="open-book">
-    By taking multiple ADC samples and averaging, you can reduce noise and effectively increase resolution. Averaging 16 samples of a 12-bit ADC gives approximately 14 bits of effective resolution. This works because random noise averages out while the signal does not.
+    The average of many samples has less noise than one sample. The average of 16 samples of a 12-bit ADC gives about 14 bits of resolution. This works only if the readings contain some random noise.
   </Card>
 
   <Card title="PWM for Analog Output" icon="rocket">
-    LED brightness, motor speed, and audio output are all commonly controlled with PWM. The timer/counter peripheral (Lesson 5) generates the PWM signal, and an external filter (or the mechanical inertia of the motor, or the persistence of vision for LEDs) smooths it into an effective analog value.
+    LED brightness and motor speed are often controlled with PWM from a timer. No filter is needed: a motor is too heavy to follow each pulse, and the eye is too slow to see an LED flicker.
   </Card>
 
   <Card title="DMA and ADC" icon="approve-check">
-    On STM32, the ADC can be triggered by a timer and its results transferred to memory by DMA, completely bypassing the CPU. This allows continuous high-speed sampling without any CPU involvement, exactly because the ADC is a self-contained hardware block operating on the bus system described in Lesson 6.
+    On STM32, a timer can start each conversion and DMA (direct memory access) can copy each result into memory, without the CPU. The ADC then samples at an exact, steady rate while the program does other work.
   </Card>
 </CardGrid>
 
@@ -433,15 +406,15 @@ Sampling rate is not an abstract exercise when you monitor a machine, it decides
 
 | Concept | Key Takeaway |
 |---------|-------------|
-| ADC resolution | More bits = finer voltage discrimination. 12-bit is standard in most MCUs. |
-| LSB voltage | $V_{ref} / 2^n$. Determines the smallest detectable voltage change. |
-| Quantization error | Inherent, max $\pm \frac{1}{2}$ LSB. Cannot be eliminated, only reduced by higher resolution. |
-| SAR ADC | Binary search algorithm. Needs $n$ clock cycles for $n$ bits. Most common MCU ADC type. |
+| ADC resolution | More bits give smaller steps. 12-bit is usual in MCUs. |
+| LSB voltage | $V_{ref} / 2^n$, the size of one step. The largest code is $2^n - 1$. |
+| Quantization error | At most $\pm \frac{1}{2}$ LSB. Only more bits reduce it. |
+| SAR ADC | Binary search. Needs $n$ comparisons for $n$ bits. |
 | Nyquist theorem | Sample at least $2 \times f_{max}$ to avoid aliasing. |
 | R-2R DAC | Simple resistor network for digital-to-analog conversion. |
 | PWM as DAC | Timer-generated square wave plus RC filter. Resolution depends on timer frequency. |
 
-In the next and final lesson, you will see how all of these building blocks (logic gates, memory, buses, ADC) come together inside a microcontroller CPU.
+Logic gates, memory, buses and the ADC all meet inside one chip. The last step is to see how the CPU of a microcontroller uses them together.
 
 <DigitalElectronicsComments />
 

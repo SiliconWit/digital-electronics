@@ -25,11 +25,11 @@ import { Card, CardGrid, Badge, Steps, LinkButton, FileTree } from '@astrojs/sta
 
 import DigitalElectronicsComments from '../../../../components/digital-electronics/DigitalElectronicsComments.astro';
 
-Until now, every circuit we built was combinational: the output depended only on the current inputs. But real digital systems need memory. A traffic light controller needs to remember which state it is in. A counter needs to remember its current count. A communication interface needs to receive bits one at a time and assemble them into a byte. All of this requires flip-flops, the fundamental one-bit memory elements that make sequential logic possible. #FlipFlops #ShiftRegisters #SequentialLogic
+A doorbell stops when you release the button. A lift call button stays lit after you take your finger away. The second circuit remembers, and gates alone cannot do that: their output depends only on the inputs at this moment. A traffic light must remember which colour it shows. A serial link must hold the bits that arrive one at a time until the byte is complete. This lesson builds the flip-flop, a memory for one bit, and uses it to drive eight outputs from three pins. #FlipFlops #ShiftRegisters #SequentialLogic
 
 ## From Combinational to Sequential
 
-The key difference:
+A circuit with memory is called sequential. The difference:
 
 | Property | Combinational | Sequential |
 |----------|--------------|-----------|
@@ -38,7 +38,7 @@ The key difference:
 | Clock | Not required | Usually clocked |
 | Examples | Gates, mux, decoder, adder | Flip-flops, registers, counters |
 
-Sequential circuits are built by adding feedback (connecting outputs back to inputs) and a clock signal to combinational logic.
+A sequential circuit is combinational logic with two additions: feedback (an output connected back to an input) and usually a clock, a steady square wave that tells every part of the circuit when to act.
 
 ## The SR Latch
 
@@ -54,26 +54,26 @@ The SR (Set-Reset) latch is the simplest memory element. It stores one bit and h
 
 ### SR Latch from NAND Gates
 
-Two cross-coupled NAND gates form an SR latch. The output of each gate feeds back to the input of the other:
+Two cross-coupled NAND gates form an SR latch. The output of each gate feeds back to an input of the other, so each gate holds the other in its state after the input signal has gone. That loop is the memory.
 
-![SR latch](./Images/SR_latch.png)
+![Two NAND gates with inputs S and R. The output of each gate, Q and Q-bar, is wired back to an input of the other gate.](./Images/SR_latch.png)
 
-*Figure: SR Latch*
+In this NAND version the inputs are active-low: an input acts when it is 0 and rests at 1.
 
-**Truth table (active-low inputs for NAND implementation):**
+**Truth table (active-low inputs):**
 
-| S | R | Q (next) | Q̄ (next) | Action |
+| S | R | Q (next) | $\overline{Q}$ (next) | Action |
 |---|---|----------|-----------|--------|
-| 1 | 1 | Q (hold) | Q̄ (hold) | No change |
+| 1 | 1 | Q (hold) | $\overline{Q}$ (hold) | No change |
 | 0 | 1 | 1 | 0 | Set |
 | 1 | 0 | 0 | 1 | Reset |
 | 0 | 0 | Invalid | Invalid | Forbidden |
 
-The "forbidden" state (both inputs active) is a problem because both outputs try to go high, and the result when the inputs are released is unpredictable. This limitation is what motivates the D flip-flop.
+The first row is the memory: with both inputs at rest, Q stays as the last set or reset left it. The "forbidden" row asks for set and reset together. Both outputs go high, and when the inputs are released the latch may take either state.
 
 ### SR Latch from NOR Gates
 
-Two cross-coupled NOR gates also form an SR latch, but with active-high inputs:
+Two cross-coupled NOR gates also form an SR latch, with active-high inputs (an input acts when it is 1):
 
 | S | R | Q (next) | Action |
 |---|---|----------|--------|
@@ -82,8 +82,6 @@ Two cross-coupled NOR gates also form an SR latch, but with active-high inputs:
 | 0 | 1 | 0 | Reset |
 | 1 | 1 | Invalid | Forbidden |
 
-The NOR-based SR latch is the conceptual starting point, but the NAND version is more common in practice because NAND gates are the natural building block in CMOS technology.
-
 ## The D Flip-Flop
 
 <InArticleAd />
@@ -91,20 +89,18 @@ The NOR-based SR latch is the conceptual starting point, but the NAND version is
 
 ### Why D Flip-Flops?
 
-The SR latch has two problems: the forbidden state and the lack of a clock. The D (Data) flip-flop solves both. It has:
+The SR latch has two problems. One is the forbidden state. The other is that it has no clock: it changes the instant an input changes, so a noise pulse is stored as if it were data. The D (Data) flip-flop solves both. It has one data input, and it stores only at a moment the clock chooses:
 
 - **D (Data) input:** the value to store
 - **CLK (Clock) input:** when to store it
 - **Q output:** the stored value
-- **Q̄ output:** the complement of the stored value
+- **$\overline{Q}$ output:** the complement of the stored value
 
 ### How It Works
 
-![DFF](./Images/DFF.png)
+![Symbol of a D flip-flop with inputs D and CLK and outputs Q and Q-bar, and a timing diagram in which Q takes the value of D at each rising edge of CLK.](./Images/DFF.png)
 
-*Figure: D Flip-Flop*
-
-On the rising edge of the clock (the moment CLK transitions from 0 to 1), the value on the D input is captured and held at Q. At all other times, Q retains its previous value regardless of what D does.
+A D flip-flop works as a camera does. On the rising edge of the clock (the moment CLK goes from 0 to 1), it takes a picture of D and shows that picture at Q. At all other times Q keeps the picture, whatever D does.
 
 **Characteristic table:**
 
@@ -114,20 +110,20 @@ On the rising edge of the clock (the moment CLK transitions from 0 to 1), the va
 | Rising | 1 | 1 |
 | No edge | X | Q (hold) |
 
-This is exactly what a register inside a CPU does: capture data at a specific clock edge and hold it stable until the next capture.
+A register inside a processor does the same: it captures data at a clock edge and holds it steady until the next capture.
 
 ### Timing Concepts
 
-Two critical timing parameters:
+A picture is blurred if the subject moves while the shutter is open. In the same way, D must not change in a short window around the clock edge:
 
-- **Setup time ($t_{su}$):** the data input must be stable for at least this long *before* the clock edge. If violated, the output may be unpredictable (metastability).
-- **Hold time ($t_h$):** the data input must remain stable for at least this long *after* the clock edge.
+- **Setup time ($t_{su}$):** D must be stable for at least this long *before* the clock edge.
+- **Hold time ($t_h$):** D must stay stable for at least this long *after* the clock edge.
 
-For the 74HC74 (dual D flip-flop), typical setup time is about 14 ns and hold time is about 3 ns at 5V.
+If D changes inside the window, Q may hover between 0 and 1 for a while and then fall to either value. This is called metastability. For the 74HC74 (dual D flip-flop), the typical setup time is about 14 ns and the hold time about 3 ns at 5V.
 
 ### Building a D Flip-Flop from NAND Gates
 
-A positive-edge-triggered D flip-flop can be built from six NAND gates. The circuit uses a master-slave arrangement where the master captures data when the clock is low, and the slave transfers it to the output when the clock goes high. The construction details are in most digital electronics textbooks, but the important thing to understand is the behavior: data is captured on the clock edge.
+A rising-edge D flip-flop can be built from six NAND gates, arranged as three latches of the kind shown above. You do not need the gate-level circuit to use one. What matters is the behaviour: data is captured on the clock edge.
 
 ## The JK Flip-Flop
 
@@ -136,7 +132,7 @@ A positive-edge-triggered D flip-flop can be built from six NAND gates. The circ
 
 ### Concept
 
-The JK flip-flop eliminates the forbidden state of the SR latch. When both J and K inputs are 1 on a clock edge, the output toggles instead of becoming undefined.
+The JK flip-flop is a clocked set-reset flip-flop (J sets, K resets) that puts the forbidden input pair to use. When both J and K are 1 on a clock edge, the output toggles: it changes to the opposite of what it was.
 
 **Characteristic table:**
 
@@ -147,17 +143,17 @@ The JK flip-flop eliminates the forbidden state of the SR latch. When both J and
 | 1 | 0 | 1 | Set |
 | 1 | 1 | $\overline{Q}$ | Toggle |
 
-The toggle mode (J=K=1) is particularly useful for building counters, where each flip-flop needs to toggle on certain clock edges.
+The toggle mode ($J = K = 1$) is what counters are built from.
 
 ### JK vs D
 
 In modern designs, D flip-flops are far more common than JK flip-flops because:
 
 1. D flip-flops are simpler (fewer gates)
-2. The toggle function can be achieved with D flip-flops using feedback ($D = \overline{Q}$)
-3. Synthesis tools and FPGAs use D flip-flops exclusively
+2. A D flip-flop toggles too, if you feed its inverted output back to its input ($D = \overline{Q}$)
+3. Programmable logic chips (FPGAs) and their design tools use D flip-flops only
 
-JK flip-flops are primarily of historical and educational interest, but understanding the toggle behavior helps explain how counters work.
+You will rarely place a JK flip-flop in a new design, but its toggle behaviour explains how counters work.
 
 ## Shift Registers
 
@@ -166,7 +162,9 @@ JK flip-flops are primarily of historical and educational interest, but understa
 
 ### Concept
 
-A shift register is a chain of D flip-flops where the output of each flip-flop connects to the input of the next. On each clock edge, every bit shifts one position.
+One pin can send only one bit at a time, but eight LEDs need eight bits at once. A shift register collects bits that arrive one after another and presents them side by side.
+
+It is a chain of D flip-flops in which the output of each connects to the input of the next. Think of people in a line passing buckets: on each clock edge, every flip-flop hands its bit to its neighbour and takes a new one from the other side.
 
 ### 4-Bit Serial-In, Parallel-Out (SIPO) Shift Register
 
@@ -176,7 +174,7 @@ Data In ──→ [D FF 0] ──→ [D FF 1] ──→ [D FF 2] ──→ [D FF
                Q0            Q1            Q2            Q3
 ```
 
-On each clock pulse, the data shifts right:
+On each clock pulse the new bit enters at Q0 and every older bit moves one place toward Q3:
 
 | Clock Pulse | Data In | Q3 | Q2 | Q1 | Q0 |
 |------------|---------|----|----|----|----|
@@ -186,9 +184,11 @@ On each clock pulse, the data shifts right:
 | 3 | 1 | 0 | 1 | 0 | 1 |
 | 4 | 1 | 1 | 0 | 1 | 1 |
 
-After 4 clock pulses, the serial data `1011` has been loaded into the register and is available on all four outputs simultaneously.
+After 4 clock pulses, the serial data `1011` is in the register and can be read on all four outputs at once. The first bit sent is now at Q3.
 
 ### Types of Shift Registers
+
+The four letters say how data enters and leaves: S for serial (one bit per clock) and P for parallel (all bits at once). SIPO is serial-in, parallel-out.
 
 | Type | Serial Input | Parallel Input | Serial Output | Parallel Output |
 |------|-------------|---------------|--------------|----------------|
@@ -206,17 +206,17 @@ The 74HC595 is a SIPO shift register with an output latch. The 74HC164 is a simp
 
 ### Why the 74HC595 Matters
 
-The 74HC595 is an 8-bit serial-in, parallel-out shift register with a storage register and output enable. It lets you control 8 outputs using only 3 signals from your microcontroller:
+A small microcontroller (MCU) runs out of pins quickly. The 74HC595 gives 8 outputs for 3 pins. It is an 8-bit SIPO shift register followed by a second row of 8 flip-flops, the storage register, which drives the output pins. The 3 signals are:
 
 - **SER (serial data in):** the bit to shift in
 - **SRCLK (shift register clock):** shifts the data one position on each rising edge
-- **RCLK (register/latch clock):** transfers the shift register contents to the output pins
+- **RCLK (register clock, also called the latch clock):** copies the shift register into the storage register, and so to the output pins
 
 ### 74HC595 Pin Layout
 
-![74HC595](./Images/74HC595_Pin_layout.png)
+![Pin layout of the 74HC595, 16 pins. Pins 1 to 8: Q1 to Q7, then GND. Pins 16 down to 9: VCC, Q0, SER, OE, RCLK, SRCLK, the clear input, and Q7' serial out.](./Images/74HC595_Pin_layout.png)
 
-*Figure: 74HC595 Shift Register*
+*The drawing labels pin 10 as SRCLKR. Its usual name, used below, is SRCLR (shift register clear).*
 
 **Key connections:**
 
@@ -241,7 +241,7 @@ The 74HC595 is an 8-bit serial-in, parallel-out shift register with a storage re
 4. **Pulse RCLK** (low to high). The 8 bits in the shift register are transferred to the output latch, and Q0 through Q7 update simultaneously.
 </Steps>
 
-The latch (RCLK) is what makes this IC practical. Without it, the outputs would show intermediate "garbage" values as bits shift through. With the latch, the outputs update cleanly in one step.
+The storage register is why step 4 exists. Without it, the LEDs would show every half-shifted pattern while the bits move through. With it, the outputs keep the old pattern during the 8 shifts and change to the new one in a single step.
 
 ## Practical: Drive 8 LEDs from 3 MCU Pins
 
@@ -271,15 +271,7 @@ The latch (RCLK) is what makes this IC practical. Without it, the outputs would 
 
 4. **Tie OE (pin 13) to GND** to enable all outputs.
 
-5. **Connect 8 LEDs:** Each LED's anode connects to one output pin (Q0 through Q7) through a 220 ohm resistor. Each LED's cathode connects to GND.
-   - Q0 (pin 15) through resistor to LED 0
-   - Q1 (pin 1) through resistor to LED 1
-   - Q2 (pin 2) through resistor to LED 2
-   - Q3 (pin 3) through resistor to LED 3
-   - Q4 (pin 4) through resistor to LED 4
-   - Q5 (pin 5) through resistor to LED 5
-   - Q6 (pin 6) through resistor to LED 6
-   - Q7 (pin 7) through resistor to LED 7
+5. **Connect 8 LEDs:** Each LED's anode connects to one output pin through a 220 ohm resistor. Each LED's cathode connects to GND. Q0 is pin 15, and Q1 to Q7 are pins 1 to 7.
 
 6. **Connect the three control signals** to push buttons (for manual testing) or to MCU pins.
 </Steps>
@@ -291,13 +283,8 @@ To display the pattern `10110011` (0xB3) on the LEDs:
 <Steps>
 1. Set SER high (bit 7 = 1). Pulse SRCLK.
 2. Set SER low (bit 6 = 0). Pulse SRCLK.
-3. Set SER high (bit 5 = 1). Pulse SRCLK.
-4. Set SER high (bit 4 = 1). Pulse SRCLK.
-5. Set SER low (bit 3 = 0). Pulse SRCLK.
-6. Set SER low (bit 2 = 0). Pulse SRCLK.
-7. Set SER high (bit 1 = 1). Pulse SRCLK.
-8. Set SER high (bit 0 = 1). Pulse SRCLK.
-9. Pulse RCLK. All 8 LEDs update at once showing 10110011.
+3. Do the same for bits 5 down to 0: high, high, low, low, high, high, with one SRCLK pulse after each.
+4. Pulse RCLK. All 8 LEDs update at once showing 10110011.
 </Steps>
 
 ### MCU Code (C, Any Platform)
@@ -329,31 +316,34 @@ void shiftOut(uint8_t data) {
 }
 ```
 
-This `shiftOut` function is exactly what the Arduino `shiftOut()` function does internally. It is also exactly what the SPI peripheral does in hardware (more on this in Lesson 7).
+The Arduino `shiftOut()` function does the same shifting. So does the SPI peripheral, in hardware: SPI is the serial bus you meet with the bus interfaces later in this course.
 
 ### Daisy-Chaining for More Outputs
+
+The drawing shows the circuit you built. At the bottom right is Q7', the pin through which bits leave the chip:
 
 ```text
   74HC595 driving 8 LEDs from 3 MCU pins
 
-  MCU                    74HC595
-  ┌──────┐             ┌──────────┐
-  │      ├── SER ────→│14  SER   │
-  │      │             │          ├─Q0──[220R]──LED0
-  │      ├── SRCLK ──→│11 SRCLK  ├─Q1──[220R]──LED1
-  │      │             │          ├─Q2──[220R]──LED2
-  │      ├── RCLK ───→│12  RCLK  ├─Q3──[220R]──LED3
-  │      │             │          ├─Q4──[220R]──LED4
-  └──────┘             │   VCC=16 ├─Q5──[220R]──LED5
-   3 pins              │   GND= 8 ├─Q6──[220R]──LED6
-   control             │   OE =13→GND ├─Q7──[220R]──LED7
-   8 outputs           │  CLR=10→VCC │
-                       └──────────┘
+  MCU                  74HC595
+  ┌──────┐            ┌───────────┐
+  │      ├─ SER ─────►│14 SER   Q0├──[220R]── LED0
+  │      │            │         Q1├──[220R]── LED1
+  │      ├─ SRCLK ───►│11 SRCLK Q2├──[220R]── LED2
+  │      │            │         Q3├──[220R]── LED3
+  │      ├─ RCLK ────►│12 RCLK  Q4├──[220R]── LED4
+  └──────┘            │         Q5├──[220R]── LED5
+   3 pins      GND ───┤13 OE    Q6├──[220R]── LED6
+   control     VCC ───┤10 CLR   Q7├──[220R]── LED7
+   8 outputs          │           │
+                      │16 VCC  Q7'├──► pin 9, to SER (14)
+                      │ 8 GND     │    of the next 74HC595
+                      └───────────┘
 ```
 
-Connect Q7' (pin 9) of the first 74HC595 to SER (pin 14) of a second 74HC595. Share the SRCLK and RCLK lines. Now shift out 16 bits instead of 8, and both chips update simultaneously when you pulse RCLK.
+Q7' (pin 9) shows the bit in the last flip-flop of the shift register. Connect it to SER (pin 14) of a second 74HC595, and connect SRCLK and RCLK to both chips. Now shift out 16 bits, and both chips update together when you pulse RCLK.
 
-This scales to any number of shift registers. With three 74HC595s, you control 24 outputs from the same 3 MCU pins.
+You can add more chips in the same way. Three 74HC595s give 24 outputs from the same 3 MCU pins.
 
 ## Parallel Load Registers
 
@@ -362,7 +352,7 @@ This scales to any number of shift registers. With three 74HC595s, you control 2
 
 ### Concept
 
-While shift registers load data serially (one bit per clock), parallel load registers load all bits simultaneously on a clock edge. Every register inside your MCU's CPU is a parallel load register.
+A shift register loads one bit per clock. A parallel load register loads all its bits on one clock edge: it is a row of D flip-flops that share a clock. Every register inside the processor of your MCU is of this kind.
 
 A 4-bit parallel load register has:
 - 4 data inputs ($D_0$ through $D_3$)
@@ -370,11 +360,11 @@ A 4-bit parallel load register has:
 - 1 load enable input
 - 4 outputs ($Q_0$ through $Q_3$)
 
-When load enable is active, on the clock edge all four D inputs are captured simultaneously.
+On a clock edge with load enable active, all four D inputs are captured together. With load enable inactive, the register keeps its value.
 
 ### Register Files
 
-A CPU register file is a collection of parallel load registers (typically 16 or 32 registers, each 32 bits wide on ARM Cortex-M). A decoder selects which register to read or write based on the register number encoded in the instruction.
+A processor's register file is a set of parallel load registers (16 registers of 32 bits each on an ARM Cortex-M). Each instruction carries the number of the register it writes. A decoder turns that number into one load enable line, so only the chosen register captures the data on the write clock edge:
 
 ```text
   CPU Register File (simplified)
@@ -394,9 +384,6 @@ A CPU register file is a collection of parallel load registers (typically 16 or 
          └──────┴────┬───┘
                      │
            Data Bus [31:0]
-
-  Only the decoded register captures
-  data on the write clock edge.
 ```
 
 ## Exercises
@@ -463,19 +450,19 @@ Chip 2 (farther from MCU) displays Q7..Q0 = `0xA5` = `10100101`.
 
 <CardGrid>
   <Card title="SPI Is a Shift Register" icon="setting">
-    The SPI bus works exactly like the 74HC595. The MCU's SPI peripheral contains an internal shift register. When you call `HAL_SPI_Transmit()`, data is shifted out one bit per clock, and simultaneously data from the slave shifts in. SPI is literally two shift registers connected in a ring.
+    The SPI bus works as the 74HC595 does. When you call `HAL_SPI_Transmit()`, a shift register in the MCU sends one bit per clock while a bit from the other device shifts in. SPI is two shift registers connected in a ring.
   </Card>
 
   <Card title="GPIO Expanders" icon="open-book">
-    Running out of GPIO pins? SPI-connected GPIO expanders (like the MCP23S17) use shift registers internally. The 74HC595 exercise in this lesson is a simplified version of what these expanders do.
+    When a design needs more pins, SPI port expanders such as the MCP23S17 add them. The 74HC595 circuit of this lesson is a simple version of what they do.
   </Card>
 
   <Card title="CPU Registers" icon="rocket">
-    The R0 through R15 registers in an ARM Cortex-M CPU are 32-bit parallel load registers. When you write `MOV R0, #5`, the value 5 is loaded into the R0 register on a clock edge. The register file holds its contents between instructions.
+    R0 through R15 in an ARM Cortex-M are 32-bit parallel load registers. `MOV R0, #5` loads the value 5 into R0 on a clock edge, and R0 holds it until it is written again.
   </Card>
 
   <Card title="LED Matrix and Display Drivers" icon="approve-check">
-    LED matrices, seven-segment displays, and LCD controllers use shift registers to reduce pin count. The MAX7219 LED driver, for example, is an SPI-connected shift register with constant-current LED drivers.
+    LED matrices and seven-segment displays use shift registers to save pins. The MAX7219 LED driver takes its data through a 16-bit shift register.
   </Card>
 </CardGrid>
 
@@ -492,8 +479,6 @@ Chip 2 (farther from MCU) displays Q7..Q0 = `0xA5` = `10100101`.
 | Shift register (SIPO) | Serial to parallel conversion | 74HC595 drives 8 outputs from 3 pins |
 | Shift register (PISO) | Parallel to serial conversion | Used in keyboard scanners, SPI slaves |
 | Parallel load register | Capture all bits simultaneously | CPU register file, data latches |
-
-In the next lesson, you will connect flip-flops into counters and timers, the circuits that keep time and generate waveforms inside every microcontroller.
 
 <DigitalElectronicsComments />
 
