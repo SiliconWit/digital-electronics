@@ -173,7 +173,7 @@ To wire a gate you must know which pin of the chip is which. The 74HC family wor
 - Gate 3: inputs on pins 9, 10; output on pin 8
 - Gate 4: inputs on pins 12, 13; output on pin 11
 
-The 74HC00 (NAND), 74HC32 (OR), and 74HC86 (XOR) all use the same pinout. Only the gate function differs.
+The 74HC00 (NAND), 74HC32 (OR), and 74HC86 (XOR) all use the same pinout. Only the gate function differs. The 74HC02 (quad NOR) is the exception: its outputs are pins 1, 4, 10 and 13.
 
 ### 74HC04 (Hex Inverter) Pin Layout
 
@@ -197,6 +197,7 @@ There are six inverters in one package. Each has one input (A) and one output (Y
 | LEDs (any color) | 3 |
 | 220 ohm resistors | 3 |
 | 10K ohm resistors | 2 |
+| 100 nF capacitor | 1 |
 | Push buttons | 2 |
 | 5V power supply | 1 |
 | Jumper wires | assorted |
@@ -206,11 +207,11 @@ There are six inverters in one package. Each has one input (A) and one output (Y
 <Steps>
 1. **Place the 74HC08** across the center groove of the breadboard, straddling the gap.
 
-2. **Connect power:** pin 14 to the 5V rail, pin 7 to the GND rail.
+2. **Connect power:** pin 14 to the 5V rail, pin 7 to the GND rail. Put the 100 nF capacitor from pin 14 to pin 7, close to the chip. It supplies the current pulses the gates draw when they switch.
 
 3. **Wire input A (pin 1)** to a push button. Connect a 10K pull-down resistor from pin 1 to GND. The button connects pin 1 to 5V when pressed. When not pressed, the pull-down holds the input at 0. Without it the released input is connected to nothing: it floats, picks up noise, and reads 0 or 1 at random.
 
-4. **Wire input B (pin 2)** the same way with a second push button and pull-down resistor.
+4. **Wire input B (pin 2)** the same way with a second push button and pull-down resistor. Then connect the inputs of the three gates you do not use (pins 4, 5, 9, 10, 12, 13) straight to GND. A floating input can sit halfway between 0 and 1, where the gate draws extra current and can oscillate.
 
 5. **Wire the output (pin 3)** to an LED through a 220 ohm resistor. Connect the LED anode to pin 3 (through the resistor) and the cathode to GND.
 
@@ -227,10 +228,10 @@ Use the same circuit but replace the 74HC08 with the 74HC32. Now the LED lights 
 
 ### Wiring the NOT Gate
 
-Use the 74HC04. Connect one push button (with pull-down) to pin 1 (input). Connect pin 2 (output) to an LED with a 220 ohm resistor. The LED will be on when the button is not pressed and off when it is pressed.
+Use the 74HC04. Connect one push button (with pull-down) to pin 1 (input). Connect pin 2 (output) to an LED with a 220 ohm resistor. Tie the five unused inputs (pins 3, 5, 9, 11, 13) to GND. The LED will be on when the button is not pressed and off when it is pressed.
 
 :::tip[Debugging tip]
-If your circuit does not work, check three things first: (1) VCC and GND are on the correct pins, (2) the IC is the right way round (the notch or dot marks the pin 1 end), (3) every input has a pull-down or pull-up resistor, so none floats.
+If your circuit does not work, check three things first: (1) VCC and GND are on the correct pins, (2) the IC is the right way round (the notch or dot marks the pin 1 end), (3) every input, used or not, is tied to a pull-down, a pull-up or a rail, so none floats.
 :::
 
 ## Boolean Algebra
@@ -331,12 +332,14 @@ A practical circuit often chains several gate types. Here is a 2-bit equality co
 
 Each XNOR checks one pair of bits, and the AND gate asks that both pairs match. An 8-bit comparator uses 8 XNOR gates and an 8-input AND.
 
+The press from the opening is a 3-input AND, $Y = G \cdot L \cdot R$ (guard closed, left and right buttons pressed). Only one of the $2^3 = 8$ cases gives $Y = 1$. Build it from two gates of the 74HC08: G and L into gate 1, then pin 3 and R into gate 2 (pins 4 and 5). **Check it:** step through all eight cases against the truth table; right in seven is a fail. A real press never uses plain gates for this, because a gate can fail with its output stuck at 1. It uses a two-channel safety relay or safety controller.
+
 ## NAND as a Universal Gate
 
 <InArticleAd />
 
 
-Any logic function can be built from NAND gates alone. This matters because making one type of gate is simpler and cheaper. Here is how to build each basic gate from NAND:
+Any logic function can be built from NAND gates alone, so a box of 74HC00 chips can build any digital circuit. This matters because making one type of gate is simpler and cheaper. Here is how to build each basic gate from NAND:
 
 **NOT from NAND:** Connect both inputs of a NAND gate together. With both inputs equal to A, the output is 1 for A = 0 and 0 for A = 1.
 
@@ -349,8 +352,6 @@ $$Y = \overline{\overline{A \cdot B}} = A \cdot B$$
 By De Morgan's theorem: $\overline{\overline{A} \cdot \overline{B}} = A + B$
 
 ![An OR gate made of three NAND gates: one with both inputs tied to A, one with both tied to B, and a third that takes their outputs and gives Y = A + B.](./Images/NAND_as_universal_gate.png)
-
-With enough 74HC00 (quad NAND) chips, you can build any digital circuit.
 
 ## Practical: Build a NAND-Only OR Gate
 
@@ -366,7 +367,7 @@ With enough 74HC00 (quad NAND) chips, you can build any digital circuit.
 
 4. **Gate 3 (NAND of inverted inputs):** Connect pin 3 to pin 9, pin 6 to pin 10. The output on pin 8 is $\overline{\overline{A} \cdot \overline{B}} = A + B$.
 
-5. **Connect pin 8** to an LED through a 220 ohm resistor.
+5. **Connect pin 8** to an LED through a 220 ohm resistor. Tie pins 12 and 13, the inputs of the unused fourth gate, to GND.
 
 6. **Verify:** The LED behaves as an OR gate. It lights when either or both buttons are pressed.
 </Steps>
@@ -379,6 +380,8 @@ With enough 74HC00 (quad NAND) chips, you can build any digital circuit.
 Real gates do not switch at once. The output of a 74HC08 AND gate responds about 7 nanoseconds (ns) after its input changes, at 5V. This time is the propagation delay.
 
 In a chain of gates the delays add. Five gates in a row take about $5 \times 7 = 35$ ns. If a new input arrives before the old answer has come out, the answer is wrong. So the longest chain of gates sets the highest clock speed of a circuit, and of a microcontroller.
+
+The 7 ns is typical. Design with the data sheet maximum, about 15 ns per gate at 25 °C and more when hot: five gates then take up to $5 \times 15 = 75$ ns. A circuit timed on typical values can pass on the bench and fail in a hot cabinet.
 
 | Parameter | 74HC Series (5V) | 74HCT Series (5V) |
 |-----------|------------------|-------------------|

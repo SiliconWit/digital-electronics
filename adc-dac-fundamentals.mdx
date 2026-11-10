@@ -86,6 +86,20 @@ uint16_t adc_value = HAL_ADC_GetValue(&hadc1);
 float voltage = (float)adc_value * 3.3f / 4096.0f;
 ```
 
+`HAL_ADC_GetValue` only returns the last result. In a program, start a conversion, wait with a time limit, and use the value only if it arrived:
+
+```c
+HAL_ADC_Start(&hadc1);
+if (HAL_ADC_PollForConversion(&hadc1, 10) == HAL_OK) {   // wait at most 10 ms
+    uint16_t adc_value = HAL_ADC_GetValue(&hadc1);
+    float voltage = (float)adc_value * 3.3f / 4096.0f;
+} else {
+    // no new result: report it, do not reuse the old value
+}
+```
+
+The `3.3f` assumes the reference is exactly 3.3V. On the STM32F103C8 the reference is the analog supply, so a regulator at 3.25V makes every reading 1.5 % low. **Check it:** put the supply voltage you measure with a meter in the code, then compare a known input voltage with the computed one.
+
 ### Quantization Error
 
 The input can be anywhere inside a step, but the code names only the step. The difference is the quantization error. When each code is taken to mean the middle of its step, the error is at most $\pm \frac{1}{2}$ LSB.
@@ -166,6 +180,8 @@ Result: 1010 (decimal 10). Voltage: $10 \times 3.3 / 16 = 2.0625\text{V}$. The e
 ### Why SAR Is Popular in MCUs
 
 A 12-bit SAR ADC needs exactly 12 comparisons for one result. At a 14 MHz ADC clock (STM32F103), one conversion takes about 1 microsecond. That is fast enough for most sensors, and the circuit is small and uses little power.
+
+The 1 µs uses the shortest sampling time, 1.5 ADC clocks, in which the sample-and-hold capacitor must charge through the source resistance. From a divider or sensor of 10 kΩ or more it does not finish: the reading is low and depends on the channel read before. Choose a longer sampling time (up to 239.5 clocks; the data sheet gives the largest source resistance for each), or, for a slow signal, put 100 nF from the ADC pin to GND.
 
 Other types trade speed for bits: a delta-sigma ADC gives 16 to 24 bits at only 10 to 1000 samples per second.
 
@@ -305,6 +321,8 @@ $$\text{Steps} = \frac{72{,}000{,}000}{20{,}000} = 3{,}600 \text{ steps}$$
 
 That is about 11.8 bits of resolution ($\log_2 3600 \approx 11.8$), close to a 12-bit DAC. A higher PWM frequency gives fewer steps. A lower one gives more steps but needs a slower filter.
 
+Resolution is not accuracy. With the 10K and 100 nF filter above, the output ripples by about 41 mV peak to peak at 50 % duty, about 45 of those 0.9 mV steps (**check it** with an oscilloscope on AC coupling). For finer output, add a second RC stage and buffer it with an op-amp, since the 10K is in series with any load.
+
 ## Practical Exercises
 
 <InArticleAd />
@@ -363,14 +381,14 @@ You would also need an anti-aliasing filter with a cutoff around 2 to 3 kHz.
 
 ### Exercise 4: PWM DAC Design
 
-You want to generate a 0 to 3.3V analog signal using PWM on an ATmega328P running at 16 MHz. Using an 8-bit timer (256 levels), what is the PWM frequency? How many voltage levels can you produce?
+You want to generate an analog signal using PWM on an ATmega328P running at 16 MHz (as on an Arduino Uno, which runs from 5V). Using an 8-bit timer (256 levels), what is the PWM frequency? How many voltage levels can you produce?
 
 <details>
 <summary>**Solution**</summary>
 
 PWM frequency: $\frac{16{,}000{,}000}{256} = 62{,}500 \text{ Hz} = 62.5 \text{ kHz}$
 
-Voltage levels: 256 (0 to 255), giving a voltage step of $3.3 / 256 = 12.9 \text{ mV}$.
+Voltage levels: 256 (0 to 255). The PWM swings from 0 to the 5V supply, so the step is $5 / 256 = 19.5 \text{ mV}$. (At 3.3V the steps would be $3.3 / 256 = 12.9$ mV, but the data sheet allows 16 MHz only from about 3.8V.)
 
 For filtering, choose a cutoff well below 62.5 kHz. At 625 Hz (1/100 of PWM): $R = 10\text{K}$, $C = \frac{1}{2\pi \times 10000 \times 625} = 25.5 \text{ nF}$ (use 27 nF or 33 nF).
 

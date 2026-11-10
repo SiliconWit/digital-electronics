@@ -121,9 +121,11 @@ A picture is blurred if the subject moves while the shutter is open. In the same
 
 If D changes inside the window, Q may hover between 0 and 1 for a while and then fall to either value. This is called metastability. For the 74HC74 (dual D flip-flop), the typical setup time is about 14 ns and the hold time about 3 ns at 5V.
 
+A signal not tied to the clock (a button, a sensor, a chip with its own clock) will sooner or later change inside that window. The cure is two D flip-flops in a row on the same clock: the first may go metastable, and it has a full clock period to settle before the second takes its picture. Microcontrollers have this synchroniser behind their input pins; logic you build yourself needs its own.
+
 ### Building a D Flip-Flop from NAND Gates
 
-A rising-edge D flip-flop can be built from six NAND gates, arranged as three latches of the kind shown above. You do not need the gate-level circuit to use one. What matters is the behaviour: data is captured on the clock edge.
+A rising-edge D flip-flop can be built from six NAND gates, arranged as three latches of the kind shown above. To use one you need only its behaviour: data is captured on the clock edge.
 
 ## The JK Flip-Flop
 
@@ -168,10 +170,13 @@ It is a chain of D flip-flops in which the output of each connects to the input 
 
 ### 4-Bit Serial-In, Parallel-Out (SIPO) Shift Register
 
-```
-Data In ──→ [D FF 0] ──→ [D FF 1] ──→ [D FF 2] ──→ [D FF 3]
-                │             │             │             │
-               Q0            Q1            Q2            Q3
+```text
+           ┌──────┐   ┌──────┐   ┌──────┐   ┌──────┐
+ Data In ─►│ FF 0 ├──►│ FF 1 ├──►│ FF 2 ├──►│ FF 3 │
+           └──┬───┘   └──┬───┘   └──┬───┘   └──┬───┘
+              │          │          │          │
+              Q0         Q1         Q2         Q3
+        (all four share one clock)
 ```
 
 On each clock pulse the new bit enters at Q0 and every older bit moves one place toward Q3:
@@ -229,7 +234,7 @@ A small microcontroller (MCU) runs out of pins quickly. The 74HC595 gives 8 outp
 | 14 | SER | MCU data pin |
 | 11 | SRCLK | MCU clock pin |
 | 12 | RCLK | MCU latch pin |
-| 15, 1-7 | Q0-Q7 | LEDs (through 220 ohm resistors) |
+| 15, 1-7 | Q0-Q7 | LEDs (through 470 ohm resistors) |
 | 9 | Q7' | SER of next 74HC595 (for daisy-chaining) |
 
 ### How Data Flows Through the 74HC595
@@ -254,7 +259,9 @@ The storage register is why step 4 exists. Without it, the LEDs would show every
 |-----------|----------|
 | 74HC595 | 1 |
 | LEDs | 8 |
-| 220 ohm resistors | 8 |
+| 470 ohm resistors | 8 |
+| 10K ohm resistors | 3 |
+| 100 nF capacitor | 1 |
 | Breadboard | 1 |
 | 5V power supply | 1 |
 | Jumper wires | assorted |
@@ -265,15 +272,15 @@ The storage register is why step 4 exists. Without it, the LEDs would show every
 <Steps>
 1. **Place the 74HC595** on the breadboard.
 
-2. **Power:** pin 16 to 5V, pin 8 to GND.
+2. **Power:** pin 16 to 5V, pin 8 to GND, and the 100 nF capacitor from pin 16 to pin 8.
 
 3. **Tie SRCLR (pin 10) to 5V** to prevent accidental clearing.
 
 4. **Tie OE (pin 13) to GND** to enable all outputs.
 
-5. **Connect 8 LEDs:** Each LED's anode connects to one output pin through a 220 ohm resistor. Each LED's cathode connects to GND. Q0 is pin 15, and Q1 to Q7 are pins 1 to 7.
+5. **Connect 8 LEDs:** Each LED's anode connects to one output pin through a 470 ohm resistor. Each LED's cathode connects to GND. Q0 is pin 15, and Q1 to Q7 are pins 1 to 7. Not 220 ohm: a red LED would take about $(5 - 2)\,\text{V} / 220\,\Omega = 13.6$ mA, and eight about 109 mA through the one VCC pin, which is limited to 70 mA. With 470 ohm it is at most about 51 mA.
 
-6. **Connect the three control signals** to push buttons (for manual testing) or to MCU pins.
+6. **Connect the three control signals** to push buttons (for manual testing) or to MCU pins. Each button connects its pin to 5V, with a 10K pull-down to GND. A button on SRCLK also bounces: one press can give several rising edges and shift the bit several places. An MCU gives clean edges.
 </Steps>
 
 ### Manual Test Procedure
@@ -285,6 +292,7 @@ To display the pattern `10110011` (0xB3) on the LEDs:
 2. Set SER low (bit 6 = 0). Pulse SRCLK.
 3. Do the same for bits 5 down to 0: high, high, low, low, high, high, with one SRCLK pulse after each.
 4. Pulse RCLK. All 8 LEDs update at once showing 10110011.
+5. **Check it:** Q7 down to Q0 must read 1, 0, 1, 1, 0, 0, 1, 1. Shifted by one or more places: SRCLK saw extra edges (bounce). Reversed: the LEDs are in the wrong order, or the bits went LSB first.
 </Steps>
 
 ### MCU Code (C, Any Platform)
@@ -316,7 +324,34 @@ void shiftOut(uint8_t data) {
 }
 ```
 
-The Arduino `shiftOut()` function does the same shifting. So does the SPI peripheral, in hardware: SPI is the serial bus you meet with the bus interfaces later in this course.
+The same function, complete, for an ATmega328P (Arduino Uno or Nano; SER, SRCLK and RCLK on PB0, PB1, PB2, board pins D8 to D10):
+
+```c
+#include <avr/io.h>
+
+#define SER   PB0
+#define SRCLK PB1
+#define RCLK  PB2
+
+void shift_out_595(uint8_t data) {
+    for (int8_t i = 7; i >= 0; i--) {            // MSB first
+        if (data & (1 << i)) PORTB |= (1 << SER);
+        else                 PORTB &= ~(1 << SER);
+        PORTB |= (1 << SRCLK);                   // rising edge: shift
+        PORTB &= ~(1 << SRCLK);
+    }
+    PORTB |= (1 << RCLK);                        // rising edge: show
+    PORTB &= ~(1 << RCLK);
+}
+
+int main(void) {
+    DDRB |= (1 << SER) | (1 << SRCLK) | (1 << RCLK);
+    shift_out_595(0xB3);                         // Q7..Q0 = 1011 0011
+    for (;;) { }
+}
+```
+
+The LEDs must show the same 10110011 as the manual test. The Arduino `shiftOut()` function does the same shifting. So does the SPI peripheral, in hardware: SPI is the serial bus you meet with the bus interfaces later in this course.
 
 ### Daisy-Chaining for More Outputs
 
@@ -327,14 +362,14 @@ The drawing shows the circuit you built. At the bottom right is Q7', the pin thr
 
   MCU                  74HC595
   ┌──────┐            ┌───────────┐
-  │      ├─ SER ─────►│14 SER   Q0├──[220R]── LED0
-  │      │            │         Q1├──[220R]── LED1
-  │      ├─ SRCLK ───►│11 SRCLK Q2├──[220R]── LED2
-  │      │            │         Q3├──[220R]── LED3
-  │      ├─ RCLK ────►│12 RCLK  Q4├──[220R]── LED4
-  └──────┘            │         Q5├──[220R]── LED5
-   3 pins      GND ───┤13 OE    Q6├──[220R]── LED6
-   control     VCC ───┤10 CLR   Q7├──[220R]── LED7
+  │      ├─ SER ─────►│14 SER   Q0├──[470R]── LED0
+  │      │            │         Q1├──[470R]── LED1
+  │      ├─ SRCLK ───►│11 SRCLK Q2├──[470R]── LED2
+  │      │            │         Q3├──[470R]── LED3
+  │      ├─ RCLK ────►│12 RCLK  Q4├──[470R]── LED4
+  └──────┘            │         Q5├──[470R]── LED5
+   3 pins      GND ───┤13 OE    Q6├──[470R]── LED6
+   control     VCC ───┤10 CLR   Q7├──[470R]── LED7
    8 outputs          │           │
                       │16 VCC  Q7'├──► pin 9, to SER (14)
                       │ 8 GND     │    of the next 74HC595
@@ -373,7 +408,7 @@ A processor's register file is a set of parallel load registers (16 registers of
          │
     ┌────┴────┐
     │ 4-to-16 │
-    │ Decoder  │
+    │ Decoder │
     └────┬────┘
          │ enable lines
     ┌────┼────────────────────┐

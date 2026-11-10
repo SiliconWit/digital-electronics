@@ -25,7 +25,7 @@ import { Card, CardGrid, Badge, Steps, LinkButton, FileTree } from '@astrojs/sta
 
 import DigitalElectronicsComments from '../../../../components/digital-electronics/DigitalElectronicsComments.astro';
 
-You set a timer for one second and the clock you built loses 20 seconds a day. The cause is usually one number in a timer register that was off by one, or a divider that was misread. A timer is only a counter that counts clock pulses. This lesson builds counters from flip-flops, so that when you set up TIM2 on an STM32 or Timer1 on an ATmega328P you know what each register value does. #Counters #Timers #FrequencyDividers
+You set a timer for one second and the clock you built loses a minute and a half a day. The cause is usually one number in a timer register that was off by one, or a divider that was misread. A timer is only a counter that counts clock pulses. This lesson builds counters from flip-flops, so that when you set up TIM2 on an STM32 or Timer1 on an ATmega328P you know what each register value does. #Counters #Timers #FrequencyDividers
 
 ## What Is a Counter?
 
@@ -51,11 +51,14 @@ The simplest counter is a chain of flip-flops in which the output of each drives
 
 **4-bit ripple counter:**
 
-```
-CLK ──→ [FF0] ──Q0──→ [FF1] ──Q1──→ [FF2] ──Q2──→ [FF3] ──Q3
-          │              │              │              │
-         Q0             Q1             Q2             Q3
-        (LSB)                                        (MSB)
+```text
+        ┌─────┐    ┌─────┐    ┌─────┐    ┌─────┐
+ CLK ──►│ FF0 ├───►│ FF1 ├───►│ FF2 ├───►│ FF3 │
+        └──┬──┘    └──┬──┘    └──┬──┘    └──┬──┘
+           │          │          │          │
+           Q0         Q1         Q2         Q3
+          (LSB)                            (MSB)
+  each Q is also the clock of the next flip-flop
 ```
 
 Each flip-flop toggles on the falling edge of the output before it. When Q0 goes from 1 to 0, FF1 toggles. This is the carry of binary counting: a bit that returns to 0 adds one to the bit on its left.
@@ -228,6 +231,8 @@ TIM2->PSC = 7199;  // Divide 72 MHz by (7199 + 1) = 10 kHz timer clock
 
 This prescaler is a counter. It counts input pulses from 0 up to the PSC value and passes one pulse to the timer each time it returns to 0. Counting from 0 to 7199 takes 7200 pulses, so the division is by PSC + 1, not by PSC. A PSC value of 0 means no division (divide by 1). Forgetting the "+1" is the most common timer mistake.
 
+**What the mistake costs.** Suppose you want a 1 ms tick from a 1 MHz timer clock and write 1000 where 999 belongs (in the auto-reload register, ARR, explained below). Each tick is then 1001 counts, 0.1 % too long, and a clock built on it loses $86{,}400 \times 0.001 = 86.4$ s a day. **Check it:** run the clock for an hour beside a phone clock. It should agree within about a second, which is your reading error; a crystal of ±20 ppm adds only 0.07 s an hour (1.7 s a day). An error of 3.6 s an hour is one count in a thousand: look for a missing or extra "+1".
+
 On the ATmega328P:
 
 ```c
@@ -258,17 +263,17 @@ The whole timer is these parts in a row: the prescaler slows the clock, the coun
 ```text
   MCU Timer block diagram (simplified)
 
-  System    ┌───────────┐  Timer   ┌──────────┐
-  Clock ───→│ Prescaler │  Clock  │  Counter  │
-  (72MHz)   │ (PSC reg) ├────────→│  (CNT)   │
-            └───────────┘         └────┬─────┘
-                                       │ compare
-                              ┌────────┴────────┐
-                              │  =ARR?   =CCR?  │
-                              └───┬────────┬────┘
-                                  │        │
-                             Overflow   Compare
-                             Interrupt  Match/PWM
+  System    ┌───────────┐  Timer   ┌───────────┐
+  Clock ───►│ Prescaler │  Clock   │  Counter  │
+  (72MHz)   │ (PSC reg) ├─────────►│   (CNT)   │
+            └───────────┘          └─────┬─────┘
+                                         │ compare
+                                ┌────────┴────────┐
+                                │  =ARR?   =CCR?  │
+                                └───┬────────┬────┘
+                                    │        │
+                               Overflow   Compare
+                               Interrupt  Match/PWM
 ```
 
 ## The 74HC393: Dual 4-Bit Binary Counter
@@ -280,17 +285,17 @@ The whole timer is these parts in a row: the prescaler slows the clock, the coun
 
 The 74HC393 contains two independent 4-bit binary ripple counters in a single 14-pin DIP package.
 
-```
-        74HC393
-      ┌────┐
- 1A ─┤1  14├─ VCC
-1MR ─┤2  13├─ 2A
-1QA ─┤3  12├─ 2MR
-1QB ─┤4  11├─ 2QA
-1QC ─┤5  10├─ 2QB
-1QD ─┤6   9├─ 2QC
-GND ─┤7   8├─ 2QD
-      └────┘
+```text
+          74HC393
+       ┌─────────┐
+  1A  ─┤1      14├─ VCC
+  1MR ─┤2      13├─ 2A
+  1QA ─┤3      12├─ 2MR
+  1QB ─┤4      11├─ 2QA
+  1QC ─┤5      10├─ 2QB
+  1QD ─┤6       9├─ 2QC
+  GND ─┤7       8├─ 2QD
+       └─────────┘
 ```
 
 | Pin | Function |
@@ -315,10 +320,12 @@ You can cascade the two counters by connecting 1QD (pin 6) to 2A (pin 13), creat
 |-----------|----------|
 | 74HC393 | 1 |
 | LEDs | 4 |
-| 220 ohm resistors | 4 |
+| 470 ohm resistors | 4 |
 | Push button | 1 |
 | 10K resistor (pull-up) | 1 |
-| 0.1 uF capacitor (debounce) | 1 |
+| 1 uF capacitor (debounce) | 1 |
+| 74HC14 (hex Schmitt-trigger inverter) | 1 |
+| 100 nF capacitors (supply) | 2 |
 | Breadboard, jumper wires, 5V supply | 1 set |
 
 ### Wiring
@@ -326,17 +333,19 @@ You can cascade the two counters by connecting 1QD (pin 6) to 2A (pin 13), creat
 <Steps>
 1. **Place the 74HC393** on the breadboard.
 
-2. **Power:** pin 14 to 5V, pin 7 to GND.
+2. **Power:** pin 14 to 5V, pin 7 to GND, with a 100 nF capacitor across them. The 74HC14 uses the same power pins and gets its own 100 nF.
 
 3. **Master Reset (pin 2) to GND** through a 10K resistor, so it stays low (not reset) during normal operation. You can add a push button from pin 2 to 5V for manual reset.
 
-4. **Clock input (pin 1):** connect a push button. Wire the button between pin 1 and GND. Add a 10K pull-up resistor from pin 1 to 5V. The counter adds one on each falling edge (when you press the button). The contacts of a button bounce: one press makes several fast pulses, and the counter would count each of them. Add a 0.1 uF capacitor across the button to smooth the bounce (debouncing).
+4. **Clock input (pin 1):** wire the push button from a node X to GND, with a 10K pull-up resistor from X to 5V. The contacts of a button bounce: one press makes several fast pulses, and the counter would count each of them. Add the 1 uF capacitor across the button to smooth the bounce (debouncing): 10K × 1 uF = 10 ms, longer than a typical bounce. A slow edge on a counter clock can itself count several times, so pass X through one 74HC14 inverter (in pin 1, out pin 2), whose Schmitt trigger gives one clean edge, to pin 1 of the 74HC393. The inverter turns the signal over, so the count changes when you release the button. Tie the five unused 74HC14 inputs (pins 3, 5, 9, 11, 13) to GND.
 
 5. **Connect LEDs to outputs:**
-   - QA (pin 3) through 220 ohm to LED 0 (LSB)
-   - QB (pin 4) through 220 ohm to LED 1
-   - QC (pin 5) through 220 ohm to LED 2
-   - QD (pin 6) through 220 ohm to LED 3 (MSB)
+   - QA (pin 3) through 470 ohm to LED 0 (LSB)
+   - QB (pin 4) through 470 ohm to LED 1
+   - QC (pin 5) through 470 ohm to LED 2
+   - QD (pin 6) through 470 ohm to LED 3 (MSB)
+
+   With 220 ohm, four LEDs would take about 55 mA, over the chip's 50 mA supply pin limit; 470 ohm gives about 25 mA.
 
 6. **Test:** Press the clock button repeatedly. The LEDs should count in binary: 0000, 0001, 0010, 0011, ..., 1111, 0000 (overflow back to 0).
 </Steps>
@@ -439,7 +448,7 @@ You need 15 divider stages (15 flip-flops) to divide 32,768 Hz down to 1 Hz. Thi
 </details>
 
 :::tip[Instrument it]
-A counter clocked by an event is a frequency meter, which is how you turn the world's spinning and pulsing things into numbers. Point an IR-slot or Hall sensor at a rotating shaft and feed its pulses into a microcontroller's capture timer; the count per second is RPM, the same idea as the frequency divider above. An [ESP32 or STM32](/education/sensor-actuator-interfacing-stm32/) does the capture in hardware, and the live RPM or frequency can be [tracked on siliconwit.io](https://siliconwit.io) so a fan slowing down or a belt starting to slip is caught early.
+A counter clocked by an event is a frequency meter, which is how you turn the world's spinning and pulsing things into numbers. Point an IR-slot or Hall sensor at a rotating shaft and feed its pulses into a microcontroller's capture timer; with one pulse per turn, the count per second times 60 is the RPM (a count of 25 in one second is 1500 RPM). An [ESP32 or STM32](/education/sensor-actuator-interfacing-stm32/) does the capture in hardware, and the live RPM or frequency can be [tracked on siliconwit.io](https://siliconwit.io) so a fan slowing down or a belt starting to slip is caught early.
 :::
 
 ## How This Connects to Embedded Programming
@@ -461,7 +470,7 @@ A counter clocked by an event is a frequency meter, which is how you turn the wo
   </Card>
 
   <Card title="The SysTick Timer" icon="approve-check">
-    ARM Cortex-M processors include a 24-bit down-counter, SysTick, that reloads when it reaches zero and usually raises an interrupt every 1 ms. `HAL_Delay(100)` waits for 100 of these interrupts.
+    ARM Cortex-M processors include a 24-bit down-counter, SysTick, that reloads when it reaches zero and usually raises an interrupt every 1 ms. `HAL_Delay(100)` counts these interrupts and waits at least 100 of them (the STM32 HAL adds one tick, so the wait is never short).
   </Card>
 </CardGrid>
 

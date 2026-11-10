@@ -35,6 +35,8 @@ A combinational circuit is a block of gates with:
 - **No clock:** the output changes whenever an input changes (after a small propagation delay)
 - **A defined function:** every combination of inputs gives exactly one output
 
+"After a small propagation delay" matters. While the inputs change, signals reach the output by paths of different length, so the output can show a short wrong value, a **glitch**, before it settles. A glitch lasts nanoseconds, but a counter or an interrupt input will see it. This is why the output of combinational logic is usually read on a clock edge, after it has settled.
+
 Sequential circuits, which come next in this course, add memory: their output also depends on what happened before.
 
 ## Multiplexers (MUX)
@@ -69,18 +71,18 @@ A 4-to-1 mux has 4 data inputs, 2 select lines, and 1 output:
 ```text
   4-to-1 Multiplexer Block Diagram
 
-  D0 ──┐
-       │
-  D1 ──┤     ┌─────┐
-       ├─────┤     │
-  D2 ──┤     │ MUX ├──── Y (output)
-       │     │ 4:1 │
-  D3 ──┘     └──┬──┘
-                │
-           ┌────┴────┐
-           S1       S0
+           ┌─────────┐
+  D0 ──────┤         │
+  D1 ──────┤   MUX   │
+  D2 ──────┤   4:1   ├──── Y (output)
+  D3 ──────┤         │
+           └──┬───┬──┘
+              │   │
+             S1   S0
          (select lines)
 ```
+
+Each data input has its own wire; the select lines choose which one reaches Y.
 
 | $S_1$ | $S_0$ | Y |
 |-------|-------|---|
@@ -163,7 +165,7 @@ Each output is one AND gate. The decoder is four AND gates plus two inverters.
 
 ### 3-to-8 Decoder
 
-3 input lines, 8 output lines. The 74HC138 is a classic 3-to-8 decoder IC.
+3 input lines, 8 output lines. The 74HC138 is a classic 3-to-8 decoder IC. Two details of the real chip surprise people. Its outputs are active low: the selected output goes to 0 and the other seven stay at 1, which suits chip select inputs, since most are active low too. And it has three enable inputs (E1 and E2 active low, E3 active high; some makers call them G2A, G2B and G1); unless E1 = 0, E2 = 0 and E3 = 1, every output stays at 1 whatever the address.
 
 | $A_2$ | $A_1$ | $A_0$ | Active Output |
 |-------|-------|-------|--------------|
@@ -230,7 +232,7 @@ Two inputs can be active at the same time: two keys pressed, two devices asking 
 
 An "X" means "don't care": the value has no effect. If $D_3$ is active, the output is 11 whatever $D_2$, $D_1$ and $D_0$ are. The Valid output tells a real code 00 apart from "no input active".
 
-**In embedded systems:** An interrupt is a signal that asks the processor to stop and handle an event. When several are waiting, the interrupt controller of an ARM Cortex-M (the NVIC) uses priority encoding to choose which to handle first.
+**In embedded systems:** An interrupt is a signal that asks the processor to stop and handle an event. When several are waiting, the interrupt controller of an ARM Cortex-M (the NVIC) uses priority encoding to choose which to handle first. In the NVIC the lowest priority number wins, the opposite of the "highest-numbered input" rule above.
 
 ## Half Adder
 
@@ -357,7 +359,7 @@ The circuit is simple but slow for wide numbers. Modern processors use carry-loo
 
 5. **OR the four AND outputs** together using two stages of 74HC32 (OR the first two, OR the second two, then OR the results).
 
-6. **Connect the final OR output** to an LED through a 220 ohm resistor.
+6. **Connect the final OR output** to an LED through a 220 ohm resistor. Tie the inputs of every unused gate (four inverters of the 74HC04, one OR gate of the 74HC32) to GND, and put a 100 nF capacitor across the supply pins of each chip.
 
 7. **Test:** Set the DIP switches to different patterns and use the push buttons to select which input appears at the output. For example, set $D_0=1$, $D_1=0$, $D_2=1$, $D_3=0$. With $S_1=0$, $S_0=0$, the LED should light (selecting $D_0=1$). With $S_1=0$, $S_0=1$, the LED should be off (selecting $D_1=0$).
 </Steps>
@@ -395,7 +397,7 @@ The circuit is simple but slow for wide numbers. Modern processors use carry-loo
    - XOR gate 4: $(A_1 \oplus B_1) \oplus C_1$ (use 74HC86, gate 3, where $C_1$ is the carry from Full Adder 0). This is $S_1$. Connect to the $S_1$ LED.
    - For $C_{out}$: AND gate 2 for $A_1 \cdot B_1$, AND gate 3 for $(A_1 \oplus B_1) \cdot C_1$, OR gate for the two AND results. Connect to the $C_{out}$ LED.
 
-4. **Test all combinations** using the truth table below. Verify each combination by checking the LED pattern.
+4. **Test all combinations.** Four switches give $2^4 = 16$ cases, and the table below lists five of them. **Check it:** for every case, add the two numbers in your head; the three LEDs must show that sum in binary. The rows 1 + 1, 3 + 1 and 3 + 3 send a carry from bit 0 to bit 1. If only rows like these fail, the fault is in the carry wire $C_1$ or in the gates after it.
 </Steps>
 
 | $A_1 A_0$ | $B_1 B_0$ | Expected Sum ($C_{out} S_1 S_0$) |

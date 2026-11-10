@@ -208,23 +208,27 @@ You almost never convert a long hex value such as the address `0x40021000` to de
 
 ### Reading Register Values in Hex
 
-Programs, variables and registers all have addresses. The first hex digits of an address tell you its region:
+Programs, variables and registers all have addresses. The first hex digits of an address tell you its region. In this map of an STM32 microcontroller (MCU), the address beside each region is the address where that region starts:
 
 ```text
-  MCU Memory Address Map (simplified)
-  ┌────────────────────────┐ 0xFFFFFFFF
-  │   System / Cortex-M    │
-  ├────────────────────────┤ 0xE0000000
-  │       (reserved)       │
-  ├────────────────────────┤ 0x40000000
-  │   Peripheral Regs      │
+  MCU Memory Address Map (simplified, STM32F103)
+  ┌────────────────────────┐
+  │   System / Cortex-M    │  0xE0000000
+  ├────────────────────────┤
+  │       (reserved)       │  0x60000000
+  ├────────────────────────┤
+  │   Peripheral Regs      │  0x40000000
   │   (GPIO, UART, SPI...) │
-  ├────────────────────────┤ 0x20000000
-  │   SRAM (variables)     │
-  ├────────────────────────┤ 0x08000000
-  │   Flash (program code) │
-  └────────────────────────┘ 0x00000000
+  ├────────────────────────┤
+  │   SRAM (variables)     │  0x20000000
+  ├────────────────────────┤
+  │   Flash (program code) │  0x08000000
+  ├────────────────────────┤
+  │   Boot copy of Flash   │  0x00000000
+  └────────────────────────┘
 ```
+
+An address that starts `0x2` is in SRAM; one that starts `0x4` is a peripheral register. With the BOOT0 pin low, address 0 shows the Flash, where the processor finds its first instruction.
 
 Here is a real example. On the STM32F103, the register that sets up pins 0 to 7 of port A (GPIOA_CRL) is at address `0x40010800` and might contain:
 
@@ -270,7 +274,7 @@ Compare with pure binary: 47 in binary is `00101111`. The two patterns differ, s
 
 ### Where BCD Appears in Embedded Systems
 
-- Real-time clock (RTC) chips: the DS3231 and the STM32 internal RTC store time in BCD. If the hours register reads `0x23`, the time is 23 hours, not decimal 35.
+- Real-time clock (RTC) chips: the DS3231 and the RTC inside most STM32 families store time in BCD. If the hours register reads `0x23`, the time is 23 hours, not decimal 35. (The STM32F103 is an exception: its RTC is a plain 32-bit counter of seconds.)
 - Seven-segment display drivers: decoder chips such as the 74LS47 take a 4-bit BCD input and drive the segments of one digit.
 
 ### BCD Conversion in C
@@ -293,6 +297,8 @@ When reading time from an RTC:
 uint8_t hours_bcd = rtc_read(RTC_HOURS_REG);  // Returns 0x23
 uint8_t hours = bcd_to_binary(hours_bcd);       // Returns 23
 ```
+
+Not every bit of a time register is a digit. In the DS3231 hours register, bit 6 selects 12-hour mode and bit 5 is then the PM flag, so 12 PM reads `0x72` and converts to 72 hours. Mask the flag bits first: `hours_bcd & 0x1F` in 12-hour mode, `& 0x3F` in 24-hour mode.
 
 ## Signed Integers: Two's Complement
 
@@ -353,6 +359,8 @@ With two's complement, addition is the same operation for signed and unsigned nu
 ```
 
 Any carry out of the MSB is discarded. This is why the arithmetic logic unit (ALU), the part of the processor that calculates, uses one adder for both signed and unsigned arithmetic.
+
+The same rule has a cost: a result that does not fit wraps around with no warning. In an `int8_t`, 100 + 100 gives `1100 1000`, which reads as -56. This is how a sum of readings or a pulse count on a site suddenly turns negative. Choose a type wide enough for the largest value the field can produce, not the largest you saw on the bench.
 
 ### Two's Complement in C
 
@@ -458,6 +466,8 @@ TCCR0B = (TCCR0B & ~0x07) | 0x05;
 ```
 
 Every pattern reads the register, changes only the masked bits, and writes the result back. A plain constant, as in `PORTB = 0x20;`, writes all eight bits and destroys the other seven settings.
+
+The read and the write are separate steps. If an interrupt changes another bit of the same register between them, the write puts the old value back and that change is lost, perhaps once in thousands of runs. Where an interrupt and the main program share a register, turn interrupts off around the change, or use a register made for it: on the STM32, `GPIOA->BSRR = (1 << 5);` sets pin 5 in one write and touches no other pin.
 
 ## Practical Exercises
 
@@ -577,7 +587,7 @@ uint8_t value = (DATA >> 4) & 0x0F;
   </Card>
 
   <Card title="Efficient Code" icon="rocket">
-    Set, clear, toggle and check are how a program controls hardware. Each becomes a single instruction on most microcontrollers (MCUs).
+    Set, clear, toggle and check are how a program controls hardware. On an AVR, setting or clearing one bit of a port is a single instruction (SBI or CBI). On an ARM Cortex-M it is three: read, change, write.
   </Card>
 </CardGrid>
 

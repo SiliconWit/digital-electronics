@@ -67,15 +67,13 @@ SPI is two shift registers connected in a ring. A shift register is a row of fli
 
 ```text
   Master                         Slave
- ┌──────────┐                  ┌──────────┐
- │ Shift    │──── MOSI ──────→│ Shift    │
- │ Register │                  │ Register │
- │ (8-bit)  │←─── MISO ──────│ (8-bit)  │
- └──────────┘                  └──────────┘
-       │                             │
-       └──────── SCLK ──────────────→│
-       │                             │
-       └──────── CS ────────────────→│
+ ┌──────────┐                   ┌──────────┐
+ │ Shift    ├────── MOSI ──────►│ Shift    │
+ │ Register │                   │ Register │
+ │ (8-bit)  │◄────── MISO ──────┤ (8-bit)  │
+ │          ├────── SCLK ──────►│          │
+ │          ├─────── CS ───────►│          │
+ └──────────┘                   └──────────┘
 ```
 
 On each clock cycle, one bit leaves the master's shift register on MOSI and one bit enters it from the slave on MISO. After 8 clock cycles, the master and the slave have exchanged one byte. SPI cannot receive without sending: to read a byte, the master must send one, often a byte that means nothing.
@@ -151,6 +149,8 @@ I2C uses only two wires for any number of devices:
 If many devices share one wire, two of them could drive it at the same time, one high and one low. That is a short circuit. I2C prevents it with open-drain drivers: a device can only pull the line low, or let it go. A pull-up resistor (typically 4.7 kΩ to the supply, VCC) pulls the line high when every device has let it go.
 
 Think of a door held open by a spring. Any person can push it closed, and it is open only when nobody pushes.
+
+The spring sets the speed. The resistor charges the capacitance of the wires and the device pins, so the line rises slowly, and the bus allows at most 1000 ns of rise time in Standard mode and 300 ns in Fast mode. With 4.7 kΩ that is reached at about 250 pF and 75 pF of total capacitance. A cable of a metre or two plus a few modules is near 100 pF, so 400 kHz over a cable usually needs a smaller resistor (2.2 kΩ allows about 160 pF) or a lower clock.
 
 ### I2C Bus with Multiple Devices
 
@@ -360,6 +360,8 @@ A logic analyzer records digital signals and shows them as timing diagrams like 
 4. **Capture** one transfer.
 
 5. **Enable protocol decoding** to see addresses, data values and ACK/NACK on the waveform.
+
+6. **Check it** against numbers you can work out before you look. Measure one UART bit with the cursors: at 115200 baud it must be 8.68 µs, and more than about 2 % away means a wrong clock setting. For I2C, the first byte of a write to address 0x50 must decode as 0xA0, followed by an ACK. If the decoder shows something else, trust the measured timing first, then check the decoder settings (baud rate, bit order, SPI mode).
 </Steps>
 
 ### What to Look For
@@ -371,7 +373,7 @@ A logic analyzer records digital signals and shows them as timing diagrams like 
 
 **I2C problems:**
 - NACK after address: wrong address, slave not powered, or missing pull-up resistors
-- SDA stuck low: slave holding the bus (reset the slave or power cycle)
+- SDA stuck low: slave holding the bus. This happens when the MCU resets in the middle of a read and the slave is still sending a 0. It has no reset pin, so at start-up send up to 9 clock pulses on SCL (as plain GPIO) until SDA goes high, then a STOP. Power cycling the slave also works.
 - Missing pull-up resistors: signals do not reach VCC, causing intermittent failures
 
 **UART problems:**

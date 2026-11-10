@@ -187,6 +187,8 @@ while (1) {
 }
 ```
 
+**Check it: count the writes.** The BETTER loop still writes every 13.3 ms (10 ms of delay plus 3.3 ms of write), about 75 times a second. Spread over 1024 addresses of 100,000 writes each, the EEPROM lasts $1024 \times 100{,}000 / 75 \approx 1.4$ million seconds: about 16 days. Rotation buys time; writing less often solves the problem. Save when the value has changed by more than a set step, or every 10 minutes: one address then lasts about 1.9 years, and a rotation over 1024 outlasts the product. Give each entry a sequence number, so that after a reset the program can find the newest.
+
 ## Address Bus, Data Bus, and Control Signals
 
 <InArticleAd />
@@ -294,7 +296,7 @@ The data memory of the ATmega328P has the same structure on a smaller scale. Its
 | 0x0060 to 0x00FF | 160 bytes | Extended I/O registers |
 | 0x0100 to 0x08FF | 2 KB | SRAM |
 
-When you write `PORTB = 0xFF;`, the compiler generates a store instruction to address 0x25, the address of the PORTB register.
+When you write `PORTB = 0xFF;`, the compiler writes to PORTB, which sits at data address 0x25. Because PORTB is in the first 64 I/O registers, it uses the short `out` instruction with the I/O address 0x05 (0x25 minus the 0x20 of the CPU registers).
 
 ## The `volatile` Keyword and Memory Access
 
@@ -331,6 +333,16 @@ volatile uint32_t *status = (volatile uint32_t *)0x40013800;
 while (!(*status & 0x40)) { }  // Compiler reads from hardware every iteration
 ```
 
+`volatile` fixes the compiler, not the hardware. If the peripheral never sets the bit (its clock is not enabled, a cable is cut), this loop still waits for ever, and the device stops. In a product, give every such loop a limit and handle the failure:
+
+```c
+uint32_t tries = 100000;
+while (!(*status & 0x40) && --tries) { }
+if (tries == 0) {
+    // the bit never came: report an error, reset the peripheral, do not hang
+}
+```
+
 ## Exercises
 
 <InArticleAd />
@@ -363,7 +375,7 @@ You have a device with 1 KB Flash pages. The page at address 0x08002000 currentl
 3. Erase the Flash page (sets all 1024 bytes to 0xFF).
 4. Write the modified buffer back to the Flash page.
 
-This read-modify-write cycle is why Flash writes are slow and why EEPROM (or EEPROM emulation) is preferred for frequently changing data.
+This read-modify-write cycle is why Flash writes are slow and why EEPROM (or EEPROM emulation) is preferred for frequently changing data. It also has a risk: if the power fails between steps 3 and 4, the page is blank and the calibration is lost. EEPROM emulation avoids this by writing the new copy to a second page before it erases the old one.
 
 </details>
 

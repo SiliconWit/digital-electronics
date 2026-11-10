@@ -240,7 +240,7 @@ MOV R0, #5    →  0xF04F 0x0005   (Thumb-2 encoding)
 STR R0, [SP, #4] →  0x9001       (Thumb encoding)
 ```
 
-These binary values are stored in Flash memory.
+These binary values are stored in Flash memory. (A compiler will often choose the shorter 16-bit form `MOVS R0, #5`, which is `0x2005`. The steps below are the same.)
 
 ### Step 3: Fetch
 
@@ -316,6 +316,8 @@ Low address     └──────────────┘
 
 Nothing stops the stack at the end of its region. If it grows too large (deep recursion, large local arrays), it writes over other data in SRAM. This is a stack overflow. The program may crash, or it may continue with wrong data and give no sign. On an MCU with little SRAM (2 KB on the ATmega328P) it happens easily.
 
+**Check it: measure the stack, do not guess it.** At start-up, fill the free stack area with a known pattern such as `0xA5`. Run the device through its heaviest work (every interrupt, the deepest call), then read the area with the debugger. The bytes that still hold `0xA5` were never used. Keep a margin of a few hundred bytes; if the pattern is gone to the end of the area, the stack has already overflowed.
+
 ## Memory-Mapped I/O
 
 <InArticleAd />
@@ -352,6 +354,8 @@ When you write `GPIOA->ODR = 0x0001;`:
 8. PA0 goes high (3.3V on the physical pin).
 </Steps>
 
+Two earlier writes must have been made, or nothing happens. The clock of GPIOA must be switched on (bit IOPAEN in the RCC register `RCC->APB2ENR`): a peripheral without its clock ignores every write, with no error. And PA0 must be set up as an output in `GPIOA->CRL`. When a pin "does nothing", check these two before the wiring.
+
 ## Interrupts and the Vector Table
 
 <InArticleAd />
@@ -369,6 +373,7 @@ uint8_t data = USART1->DR;
 // Interrupt (CPU does other work until data arrives)
 void USART1_IRQHandler(void) {
     uint8_t data = USART1->DR;  // Called automatically when data arrives
+    // store data in a volatile buffer here, for the main loop to read
 }
 ```
 
@@ -408,6 +413,14 @@ When the MCU powers on, it reads the initial SP from offset 0x0000 and the addre
 ### Interrupt Latency
 
 Latency is the time from the event to the first instruction of the handler. On ARM Cortex-M3 it is 12 clock cycles when no other handler is in the way. At 72 MHz, that is $12 / 72\text{ MHz} \approx 167\text{ ns}$. Because this time is known in advance, Cortex-M suits real-time work.
+
+The 12 cycles are the best case. An interrupt arrives later than this when:
+
+- a handler of the same or higher priority is running, and the new one must wait until it returns;
+- the program has turned interrupts off (`__disable_irq()`) around a critical part;
+- the memory is slow: at 72 MHz the STM32F103 Flash needs 2 wait states, so the vector fetch and the first instructions take extra cycles.
+
+So the worst case is the longest handler of higher priority, plus the longest time interrupts are off, plus the 12 cycles. That is the number to compare with your deadline.
 
 ## Exercises
 
