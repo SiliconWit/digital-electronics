@@ -72,11 +72,11 @@ ARM Cortex-M processors use a mixture: instructions and data have separate buses
 ```text
                    ┌──────────────────┐
                    │   AHB Bus Matrix │
-┌─────────┐       │                  │     ┌───────┐
+┌──────────┐       │                  │     ┌───────┐
 │  Cortex  │═I-bus═│                  │═════│ Flash │
 │   -M     │═D-bus═│                  │═════│ SRAM  │
 │   CPU    │═S-bus═│                  │═════│Periph │
-└─────────┘       └──────────────────┘     └───────┘
+└──────────┘       └──────────────────┘     └───────┘
 ```
 
 - **I-bus (Instruction):** fetches instructions from Flash
