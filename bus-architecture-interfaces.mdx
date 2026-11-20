@@ -450,7 +450,7 @@ Total time = $50 \times 8.68\,\mu\text{s} = 434\,\mu\text{s} \approx 0.43 \text{
 </details>
 
 :::tip[Instrument it]
-A logic analyzer shows the bus on the bench. In a deployed device, the microcontroller itself can count what happens on the bus: how often a sensor answers, how often a device gives a NACK, how long a transfer takes. An [ESP32 or STM32](/education/sensor-actuator-interfacing-stm32/) on the bus can [report these counts to siliconwit.io](https://siliconwit.io). A failing sensor or a weak pull-up then appears as a rising error count before the device stops working.
+A logic analyzer shows the bus on the bench. In a deployed device, the microcontroller itself can count what happens on the bus: how often a sensor answers, how often a device gives a NACK, how long a transfer takes. An [ESP32 or STM32](/education/sensor-actuator-interfacing-stm32/) on the bus can report these counts to [a broker you run](/education/iot-systems/mqtt-broker-setup-secure-connection/). A failing sensor or a weak pull-up then appears as a rising error count before the device stops working.
 :::
 
 ## How This Connects to Embedded Programming

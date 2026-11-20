@@ -448,7 +448,7 @@ You need 15 divider stages (15 flip-flops) to divide 32,768 Hz down to 1 Hz. Thi
 </details>
 
 :::tip[Instrument it]
-A counter clocked by an event is a frequency meter, which is how you turn the world's spinning and pulsing things into numbers. Point an IR-slot or Hall sensor at a rotating shaft and feed its pulses into a microcontroller's capture timer; with one pulse per turn, the count per second times 60 is the RPM (a count of 25 in one second is 1500 RPM). An [ESP32 or STM32](/education/sensor-actuator-interfacing-stm32/) does the capture in hardware, and the live RPM or frequency can be [tracked on siliconwit.io](https://siliconwit.io) so a fan slowing down or a belt starting to slip is caught early.
+A counter clocked by an event is a frequency meter, which is how you turn the world's spinning and pulsing things into numbers. Point an IR-slot or Hall sensor at a rotating shaft and feed its pulses into a microcontroller's capture timer; with one pulse per turn, the count per second times 60 is the RPM (a count of 25 in one second is 1500 RPM). An [ESP32 or STM32](/education/sensor-actuator-interfacing-stm32/) does the capture in hardware, and the live RPM or frequency can go over MQTT to a broker you run, or to [siliconwit.io](https://siliconwit.io), our monitoring service, which keeps the record so a fan slowing down or a belt starting to slip is caught early; it works with any MQTT client.
 :::
 
 ## How This Connects to Embedded Programming
